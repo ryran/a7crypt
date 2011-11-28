@@ -1,1 +1,15 @@
-Check out the comments at the top of the file...
+# The goal of this project is to make ASCII-armor text-{en,de}cryption more
+# accessible and easy to use for people that spend all their time in GUIs.
+# It almost goes without saying, but a requirement of this was that security not
+# be in any way sacrificed for this convenience.
+#
+# To that end: no processes are run with arguments of a passphrase, nor are
+# passphrases or message data stored on disk; the script creates a working dir
+# in ram that is only readable by the current user and whenever message data or
+# passphrases need to be stored, they are stored there and deleted as soon as
+# they have served their purpose.
+
+# System requirements: zenity and one of either gpg, gpg2, or openssl.
+# Also, for /dev/shm, any modern (2.6+) linux kernel should do.
+#  
+# Feel free to hit me up if you have any questions or suggestions.
