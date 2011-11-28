@@ -1,5 +1,5 @@
 #!/bin/bash
-# a7crypt v0.99c last mod 2011/11/28
+# a7crypt v0.99d last mod 2011/11/28
 # Latest version at <http://github.com/ryran/b19scripts>
 # Copyright 2011 Ryan Sawhill <ryan@b19.org>
 #
@@ -14,8 +14,12 @@
 #    General Public License <gnu.org/licenses/gpl.html> for more details.
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
-# The goal of this project is to make ASCII-armor text-{en,de}cryption more
-# accessible and easy to use for people that spend all their time in GUIs.
+# The original goal of this project was to make ASCII-armor text-{en,de}cryption
+# more accessible and easy to use for people that spend all their time in GUIs.
+# That goal has been reached -- in as satisfactory of a way as is possible,
+# until I learn python, that is -- so the next piece will be to add the ability
+# to encrypt/decrypt files.
+#
 # It almost goes without saying, but a requirement of this was that security not
 # be in any way sacrificed for this convenience.
 #
@@ -24,11 +28,11 @@
 # in ram that is only readable by the current user and whenever message data or
 # passphrases need to be stored, they are stored there and deleted as soon as
 # they have served their purpose.
-
+#
 # System requirements: zenity and one of either gpg, gpg2, or openssl.
 # Also, for /dev/shm, any modern (2.6+) linux kernel should do.
 #  
-# Feel free to hit me up if you have any questions or suggestions.
+# Feel free to hit me/the tracker up if you have any questions or suggestions!
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
 
@@ -97,15 +101,15 @@ elif [[ $menu_choice = Decrypt ]]; then
 
 else
   if [[ $switch_to = OpenSSL ]]; then
-    if hash openssl &>/dev/null; then
+    if command -v openssl >/dev/null; then
       init_env_OPENSSL
     else
       zenity --error --title="Missing OpenSSL" --text="OpenSSL not found in your \$PATH. That's so shocking I almost don't believe it. In any case, if you really want to try it out, you can install it using your software-management application." --width=400
     fi
   elif [[ $switch_to = GPG ]]; then
-    if hash gpg2 &>/dev/null; then
+    if command -v gpg2 >/dev/null; then
       init_env_GPG2
-    elif hash gpg &>/dev/null; then
+    elif command -v gpg >/dev/null; then
       init_env_GPG
     else
       zenity --error --title="Missing GPG" --text='Neither GPG nor GPG2 were found in your $PATH. You can install either of them using your software-management application.' --width=400
@@ -124,17 +128,17 @@ if [ $# -ne 0 ]; then                                                       #---
   echo -e "Provides simple symmetric text encryption/decryption using GPG, GPG2, or OpenSSL\nMeant to be run interactively (no args) from the desktop -- Zenity is required"
   exit
 
-elif ! hash zenity &>/dev/null; then
+elif ! command -v zenity >/dev/null; then
   echo -e "This program relies on Zenity (which you don't have) for user-interaction\nYou can easily install it from your software-management app"
   exit 1
 
-elif hash gpg2 &>/dev/null; then
+elif command -v gpg2 >/dev/null; then
   init_env_GPG2
 
-elif hash gpg &>/dev/null; then
+elif command -v gpg >/dev/null; then
   init_env_GPG
 
-elif hash openssl &>/dev/null; then
+elif command -v openssl >/dev/null; then
   init_env_OPENSSL
 
 else
