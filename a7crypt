@@ -1,5 +1,5 @@
 #!/bin/bash
-# a7crypt v0.99g last mod 2011/11/30
+# a7crypt v0.99h last mod 2011/11/30
 # Latest version at <http://github.com/ryran/b19scripts>
 # Copyright 2011 Ryan Sawhill <ryan@b19.org>
 #
@@ -118,12 +118,16 @@ if [[ $menu_choice = Encrypt ]]; then
   until [[ $(wc -c <$wd/pass) -gt 1 ]]; do
     zenity --entry --title="$zero [$mode]" --text="You must enter a passphrase" --ok-label="Encrypt" >$wd/pass || MAIN
   done
+  ## Start a progress bar dialog for those really big jobs or slow machines (this gives the user feedback and a chance to cancel)
+  coproc zenity --progress --pulsate --title="$mode: Encrypting" --text="Please wait." --auto-kill --auto-close; echo 1 >&${COPROC[1]}
   ## Run our encrytion; if failed, save & report back errors, cleanup, and go to main menu
-  if ! $encrypt 2>$wd/errlog; then
+  if ! $encrypt 2>/$wd/errlog; then
+    echo 100 >&${COPROC[1]} ## Set our progress dialog to 100% so it closes
     zenity --error --title="$zero [$mode]: ENCRYPTION ERROR!" --text="$(<$wd/errlog)" --no-wrap
     >$wd/pass; >$wd/msg
     MAIN
   fi
+  echo 100 >&${COPROC[1]} ## Set our progress dialog to 100% so it closes
   ## Clear the passphrase & msg buffers ASAP, just because we can
   >$wd/pass; >$wd/msg
   ## Display encrypted data back to user, loop back to main menu if they don't hit quit
@@ -140,11 +144,14 @@ elif [[ $menu_choice = Decrypt ]]; then
   until [[ $(wc -c <$wd/pass) -gt 1 ]]; do
     zenity --entry --title="$zero [$mode]" --text="You must enter a passphrase" --ok-label="Decrypt" >$wd/pass || MAIN
   done
+  coproc zenity --progress --pulsate --title="$mode: Decrypting" --text="Please wait." --auto-kill --auto-close; echo 1 >&${COPROC[1]}
   if ! $decrypt 2>$wd/errlog; then
+    echo 100 >&${COPROC[1]}
     zenity --error --title="$zero [$mode]: DECRYPTION ERROR!" --text="$(<$wd/errlog)" --no-wrap
     >$wd/pass; >$wd/msg.asc
     MAIN
   fi
+  echo 100 >&${COPROC[1]}
   >$wd/pass; >$wd/msg.asc
   zenity --text-info --title="$zero [$mode]: Your decrypted text" --width=800 --height=600 --no-wrap --cancel-label="Quit" --ok-label="Menu" <$wd/msg || exit
   >$wd/msg
