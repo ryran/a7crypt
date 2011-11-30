@@ -1,5 +1,5 @@
 #!/bin/bash
-# a7crypt v0.99f last mod 2011/11/30
+# a7crypt v0.99g last mod 2011/11/30
 # Latest version at <http://github.com/ryran/b19scripts>
 # Copyright 2011 Ryan Sawhill <ryan@b19.org>
 #
@@ -98,7 +98,7 @@ MAIN() {                                                                    #---
 
 ## If in openssl mode, explain to user about openssl, and give a chance to hide warnings
 if [[ $mode = OpenSSL-AES && ! -f /tmp/$zero.nowarn.$UID ]]; then
-  echo -en "You're running $zero in OpenSSL mode--either by choice, or because we could not locate GPG/GPG2.\nThis mode uses the command 'openssl aes-256-cbc' to encrypt your text.\nThe corresponding command for decryption is 'openssl aes-256-cbc -a -d' <-- which might be useful to know if you were to lose this app, because OpenSSL doesn't add any pretty info to your encrypted message like GPG, nor is OpenSSL simple-minded enough to decrypt a block of text you pass to it without using the proper arguments." | zenity --text-info --title="$zero [$mode]: Warning" --cancel-label="Understood, don't tell me for a while" --width=724 --height=210 || touch /tmp/$zero.nowarn.$UID
+  zenity --question --title="$zero [$mode]: NOTICE" --text="You're running in OpenSSL mode -- either by choice, or because we could not locate GPG1 or 2. This mode uses the command \"openssl aes-256-cbc\" to encrypt your text and \"openssl aes-256-cbc -a -d\" for decryption. I'm telling you because OpenSSL doesn't add any pretty info to your encrypted message (like GPG does) which would remind you what format the data is in, nor is OpenSSL single-minded enough to decrypt a block of text you pass to it without using the proper arguments." --cancel-label="Understood, don't tell me again for a while" --ok-label="OK" --no-markup || touch /tmp/$zero.nowarn.$UID
 fi
 
 ## Initial main menu choice
