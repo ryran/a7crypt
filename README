@@ -1,3 +1,5 @@
+# System requirements: zenity and one of either gpg, gpg2, or openssl.
+#
 # The original goal of this project was to make ASCII-armor text-{en,de}cryption
 # more accessible and easy to use for people that spend all their time in GUIs.
 # That goal has been reached -- in as satisfactory of a way as is possible,
@@ -11,9 +13,19 @@
 # passphrases or message data stored on disk; the script creates a working dir
 # in ram that is only readable by the current user and whenever message data or
 # passphrases need to be stored, they are stored there and deleted as soon as
-# they have served their purpose.
+# they have served their purpose. (Note: We WILL fall-back to creating a working
+# dir on disk if /dev/shm is unavailable for some crazy reason.)
 #
-# System requirements: zenity and one of either gpg, gpg2, or openssl.
-# Also, for /dev/shm, any modern (2.6+) linux kernel should do.
+# We of course want to ensure that all tmpfiles are cleaned up on exit. A simple
+# trap will cover exiting due to receiving a sigterm or sigint, but for sigkill,
+# we need something more. So each time our script runs, we create lockfiles with
+# our PID and the location of the temp working directory. That way, if an old
+# instance of the script ever dies without cleaning up its potentially-sensitive
+# data, we can take out the trash the next time we run.
+#
+# When lockfiles & temp directories are created by this script, we name them
+# based on the script's current filename; not some static project name. This
+# means that you can feel free to rename the script. Everything else will go
+# along with the new name--you don't need to change anything in the content.
 #  
 # Feel free to hit me/the tracker up if you have any questions or suggestions!
