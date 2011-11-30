@@ -1,5 +1,5 @@
 #!/bin/bash
-# a7crypt v0.99d last mod 2011/11/28
+# a7crypt v0.99e last mod 2011/11/30
 # Latest version at <http://github.com/ryran/b19scripts>
 # Copyright 2011 Ryan Sawhill <ryan@b19.org>
 #
@@ -14,6 +14,8 @@
 #    General Public License <gnu.org/licenses/gpl.html> for more details.
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
+# System requirements: zenity and one of either gpg, gpg2, or openssl.
+#
 # The original goal of this project was to make ASCII-armor text-{en,de}cryption
 # more accessible and easy to use for people that spend all their time in GUIs.
 # That goal has been reached -- in as satisfactory of a way as is possible,
@@ -27,35 +29,60 @@
 # passphrases or message data stored on disk; the script creates a working dir
 # in ram that is only readable by the current user and whenever message data or
 # passphrases need to be stored, they are stored there and deleted as soon as
-# they have served their purpose.
+# they have served their purpose. (Note: We WILL fall-back to creating a working
+# dir on disk if /dev/shm is unavailable for some crazy reason.)
 #
-# System requirements: zenity and one of either gpg, gpg2, or openssl.
-# Also, for /dev/shm, any modern (2.6+) linux kernel should do.
+# We of course want to ensure that all tmpfiles are cleaned up on exit. A simple
+# trap will cover exiting due to receiving a sigterm or sigint, but for sigkill,
+# we need something more. So each time our script runs, we create lockfiles with
+# our PID and the location of the temp working directory. That way, if an old
+# instance of the script ever dies without cleaning up its potentially-sensitive
+# data, we can take out the trash the next time we run.
+#
+# When lockfiles & temp directories are created by this script, we name them
+# based on the script's current filename; not some static project name. This
+# means that you can feel free to rename the script. Everything else will go
+# along with the new name--you don't need to change anything in the content.
 #  
 # Feel free to hit me/the tracker up if you have any questions or suggestions!
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
 
+## Let's set an uber-restrictive umask, because we can
+umask 077
 
-## This makes it so that the script doesn't really care what it is named
-## Feel free to rename the file--everything else will go along with it
+## If the filename of our script is /usr/local/bin/a7crypt, then this variable would end up being "a7crypt", which we will use throughout
 zero=$(basename $0)
 
-## Normally wouldn't do something like this before checking pre-requisites (like
-## syntax or app-dependencies), but doing this here made things so much simpler
-A7=/dev/shm/.$zero; [[ -d $A7 ]] || mkdir $A7; touch $A7/pass; chmod -R 700 $A7
-trap ">$A7/pass; rm $A7/msg* 2>/dev/null" EXIT
+## Setup a private working directory in ram or in ~
+if [[ -w /dev/shm ]]; then
+  A7=$(mktemp -d /dev/shm/.$zero.$UID.XXX)
+else
+  A7=$(mktemp -d ~/.$zero.$UID.XXX)
+fi
 
-## Here we create our preset environments
+## If find any existing lockfiles in home that aren't associated with a running process, then rm the old working dir and the lockfile
+for lockfile in $HOME/.$zero-*; do
+  grep -q "$0" "/proc/${lockfile##*-}/cmdline" || rm -rv $(<$lockfile) $lockfile
+done 2>/dev/null
+
+## Create a new lockfile, e.g. ~/.a7crypt-PID, containing the location of our working dir
+lockfile="$HOME/.$zero-$$"
+echo "$A7" > $lockfile
+
+## Set up our trap to clean-up working dir & kill any child processes (zenity) on exit
+trap "{ pkill -P $$; rm -r $A7 $lockfile 2>/dev/null; }" EXIT
+
+## Here we create our preset environments for our two (or three) different modes
 init_env_GPG2() {
   mode=GPG2; switch_to=OpenSSL
-  encrypt="gpg2 --batch -ac --force-mdc --passphrase-file $A7/pass $A7/msg"
-  decrypt="gpg2 --batch -d --passphrase-file $A7/pass --output $A7/msg $A7/msg.asc"
+  encrypt="gpg2 --batch --no-tty --yes -ac --force-mdc --passphrase-file $A7/pass --output $A7/msg.asc $A7/msg"
+  decrypt="gpg2 --batch --no-tty --yes -d --passphrase-file $A7/pass --output $A7/msg $A7/msg.asc"
 }
 init_env_GPG() {
   mode=GPG; switch_to=OpenSSL
-  encrypt="gpg -ac --force-mdc --passphrase-file $A7/pass $A7/msg"
-  decrypt="gpg -d --passphrase-file $A7/pass --output $A7/msg $A7/msg.asc"
+  encrypt="gpg --no-use-agent --batch --no-tty --yes -ac --force-mdc --passphrase-file $A7/pass --output $A7/msg.asc $A7/msg"
+  decrypt="gpg --no-use-agent --batch --no-tty --yes -d --passphrase-file $A7/pass --output $A7/msg $A7/msg.asc"
 }
 init_env_OPENSSL() {
   mode=OpenSSL-AES; switch_to=GPG
@@ -65,56 +92,84 @@ init_env_OPENSSL() {
 
 
 ##------------------------------------------------------------------------------
-## The main framework which everything plugs into                              |
+## THE MAIN MENU -- the framework which everything plugs into                  |
 ##                                                                             |
 MAIN() {                                                                    #---
 
-## Here we warn the user about using OpenSSL, and give a chance to hide warnings
+## If in openssl mode, explain to user about openssl, and give a chance to hide warnings
 if [[ $mode = OpenSSL-AES && ! -f /tmp/$zero.nowarn.$UID ]]; then
   echo -en "You're running $zero in OpenSSL mode--either by choice, or because we could not locate GPG/GPG2.\nThis mode uses the command 'openssl aes-256-cbc' to encrypt your text.\nThe corresponding command for decryption is 'openssl aes-256-cbc -a -d' <-- which might be useful to know if you were to lose this app, because OpenSSL doesn't add any pretty info to your encrypted message like GPG, nor is OpenSSL simple-minded enough to decrypt a block of text you pass to it without using the proper arguments." | zenity --text-info --title="$zero [$mode]: Warning" --cancel-label="Understood, don't tell me for a while" --width=724 --height=210 || touch /tmp/$zero.nowarn.$UID
 fi
 
-## GPG sadly will not overwrite files
-rm $A7/msg* 2>/dev/null
-
 ## Initial main menu choice
 menu_choice=$(zenity --list --radiolist --hide-header --title="$zero [$mode]" --text="What would you like to do?" --column=1 --column=2 TRUE Encrypt FALSE Decrypt FALSE "Switch to $switch_to-mode" --cancel-label="Quit") ||  exit
 
-## What did the user pick?
+## Commented up the encrytion block, which is pretty much the same as the decryption one
 if [[ $menu_choice = Encrypt ]]; then
+  ## Ask for ascii message to be encrypted
   zenity --text-info --editable --title="$zero [$mode]: Type or paste text to be encrypted" --width=800 --height=600 --no-wrap >$A7/msg || MAIN
+  ## Keep prompting until user actually enters some data
+  until [[ -s $A7/msg ]]; do
+    zenity --text-info --editable --title="$zero [$mode]: You must enter text to be encrypted" --width=800 --height=600 --no-wrap >$A7/msg || MAIN
+  done
+  ## Ask for encryption passphrase
   zenity --entry --title="$zero [$mode]" --text="Enter passphrase very carefully" --ok-label="Encrypt" >$A7/pass || MAIN
-  $encrypt
-  >$A7/pass; rm $A7/msg   ## We clear the passphrase & msg buffers ASAP
+  ## Keep prompting until user enters a passphrase (zenity --entry is different than --text-info; if no input, it creates a 1byte file instead of 0byte)
+  until [[ $(wc -c <$A7/pass) -gt 1 ]]; do
+    zenity --entry --title="$zero [$mode]" --text="You must enter a passphrase" --ok-label="Encrypt" >$A7/pass || MAIN
+  done
+  ## Run our encrytion; if failed, save & report back errors, cleanup, and go to main menu
+  if ! $encrypt 2>$A7/errlog; then
+    zenity --error --title="$zero [$mode]: ENCRYPTION ERROR!" --text="$(<$A7/errlog)" --no-wrap
+    >$A7/pass; >$A7/msg
+    MAIN
+  fi
+  ## Clear the passphrase & msg buffers ASAP, just because we can
+  >$A7/pass; >$A7/msg
+  ## Display encrypted data back to user, loop back to main menu if they don't hit quit
   zenity --text-info --title="$zero [$mode]: Your encrypted text" --width=650 --height=600 --no-wrap --cancel-label="Quit" --ok-label="Menu" <$A7/msg.asc || exit
-  rm $A7/msg.asc
+  >$A7/msg.asc
   MAIN
 
 elif [[ $menu_choice = Decrypt ]]; then
   zenity --text-info --editable --title="$zero [$mode]: Paste $mode-encrypted message" --width=650 --height=600 --no-wrap >$A7/msg.asc || MAIN
-  zenity --entry --title="$zero [$mode]" --text "Enter passphrase" --hide-text >$A7/pass || MAIN
-  $decrypt
-  >$A7/pass; rm $A7/msg.asc
+  until [[ -s $A7/msg.asc ]]; do
+    zenity --text-info --editable --title="$zero [$mode]: You must enter an encrypted message" --width=800 --height=600 --no-wrap >$A7/msg.asc || MAIN
+  done
+  zenity --entry --title="$zero [$mode]" --text="Enter passphrase" --ok-label="Decrypt" >$A7/pass || MAIN
+  until [[ $(wc -c <$A7/pass) -gt 1 ]]; do
+    zenity --entry --title="$zero [$mode]" --text="You must enter a passphrase" --ok-label="Decrypt" >$A7/pass || MAIN
+  done
+  if ! $decrypt 2>$A7/errlog; then
+    zenity --error --title="$zero [$mode]: DECRYPTION ERROR!" --text="$(<$A7/errlog)" --no-wrap
+    >$A7/pass; >$A7/msg.asc
+    MAIN
+  fi
+  >$A7/pass; >$A7/msg.asc
   zenity --text-info --title="$zero [$mode]: Your decrypted text" --width=800 --height=600 --no-wrap --cancel-label="Quit" --ok-label="Menu" <$A7/msg || exit
-  rm $A7/msg
+  >$A7/msg
   MAIN
 
+## If they didn't choose Encrypt or Decrypt, then they chose to switch modes
 else
+  ## If switching to openssl mode, ensure we have openssl (haha) and initialize our variables (see init_env_* functions at the top)
   if [[ $switch_to = OpenSSL ]]; then
     if command -v openssl >/dev/null; then
       init_env_OPENSSL
     else
       zenity --error --title="Missing OpenSSL" --text="OpenSSL not found in your \$PATH. That's so shocking I almost don't believe it. In any case, if you really want to try it out, you can install it using your software-management application." --width=400
     fi
+  ## If switching to gpg mode, check for gpg2, first; otherwise gpg; in the unlikely event of neither, display an error
   elif [[ $switch_to = GPG ]]; then
     if command -v gpg2 >/dev/null; then
       init_env_GPG2
     elif command -v gpg >/dev/null; then
       init_env_GPG
     else
-      zenity --error --title="Missing GPG" --text='Neither GPG nor GPG2 were found in your $PATH. You can install either of them using your software-management application.' --width=400
+      zenity --error --title="Missing GPG" --text="Neither GPG nor GPG2 were found in your \$PATH. You can install either of them using your software-management application." --width=400
     fi
   fi
+  ## Reload the main menu
   MAIN
 fi
 }
@@ -124,27 +179,28 @@ fi
 ##------------------------------------------------------------------------------
 ## BEGINNING                                                                   |
 ##                                                                             |
+## If user runs this script with arguments, display a message                  |
 if [ $# -ne 0 ]; then                                                       #---
   echo -e "Provides simple symmetric text encryption/decryption using GPG, GPG2, or OpenSSL\nMeant to be run interactively (no args) from the desktop -- Zenity is required"
   exit
-
+## Ensure we have zenity
 elif ! command -v zenity >/dev/null; then
   echo -e "This program relies on Zenity (which you don't have) for user-interaction\nYou can easily install it from your software-management app"
   exit 1
-
+## Prefer gpg2; if we have it, initialize our variables
 elif command -v gpg2 >/dev/null; then
   init_env_GPG2
-
+## Next up, check for gpg
 elif command -v gpg >/dev/null; then
   init_env_GPG
-
+## Finally, if no gpg funness, use openssl
 elif command -v openssl >/dev/null; then
   init_env_OPENSSL
-
+## In the off-chance that none of those three are on the system, warn the user that we're on to them
 else
   zenity --error --title="You pulling my leg?" --text='Neither GPG, GPG2, nor OpenSSL were found in your $PATH..? Right. If you say so. Use your software-management application to install one of them.' --width=400
   exit 1
 fi
 
-
+## Now that we know what mode we're running in, start main menu
 MAIN
