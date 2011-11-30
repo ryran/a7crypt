@@ -1,5 +1,5 @@
 #!/bin/bash
-# a7crypt v0.99e last mod 2011/11/30
+# a7crypt v0.99f last mod 2011/11/30
 # Latest version at <http://github.com/ryran/b19scripts>
 # Copyright 2011 Ryan Sawhill <ryan@b19.org>
 #
@@ -56,9 +56,9 @@ zero=$(basename $0)
 
 ## Setup a private working directory in ram or in ~
 if [[ -w /dev/shm ]]; then
-  A7=$(mktemp -d /dev/shm/.$zero.$UID.XXX)
+  wd=$(mktemp -d /dev/shm/.$zero.$UID.XXX)
 else
-  A7=$(mktemp -d ~/.$zero.$UID.XXX)
+  wd=$(mktemp -d ~/.$zero.$UID.XXX)
 fi
 
 ## If find any existing lockfiles in home that aren't associated with a running process, then rm the old working dir and the lockfile
@@ -68,26 +68,26 @@ done 2>/dev/null
 
 ## Create a new lockfile, e.g. ~/.a7crypt-PID, containing the location of our working dir
 lockfile="$HOME/.$zero-$$"
-echo "$A7" > $lockfile
+echo "$wd" > $lockfile
 
 ## Set up our trap to clean-up working dir & kill any child processes (zenity) on exit
-trap "{ pkill -P $$; rm -r $A7 $lockfile 2>/dev/null; }" EXIT
+trap "{ pkill -P $$; rm -r $wd $lockfile 2>/dev/null; }" EXIT
 
 ## Here we create our preset environments for our two (or three) different modes
 init_env_GPG2() {
   mode=GPG2; switch_to=OpenSSL
-  encrypt="gpg2 --batch --no-tty --yes -ac --force-mdc --passphrase-file $A7/pass --output $A7/msg.asc $A7/msg"
-  decrypt="gpg2 --batch --no-tty --yes -d --passphrase-file $A7/pass --output $A7/msg $A7/msg.asc"
+  encrypt="gpg2 --batch --no-tty --yes -ac --force-mdc --passphrase-file $wd/pass --output $wd/msg.asc $wd/msg"
+  decrypt="gpg2 --batch --no-tty --yes -d --passphrase-file $wd/pass --output $wd/msg $wd/msg.asc"
 }
 init_env_GPG() {
   mode=GPG; switch_to=OpenSSL
-  encrypt="gpg --no-use-agent --batch --no-tty --yes -ac --force-mdc --passphrase-file $A7/pass --output $A7/msg.asc $A7/msg"
-  decrypt="gpg --no-use-agent --batch --no-tty --yes -d --passphrase-file $A7/pass --output $A7/msg $A7/msg.asc"
+  encrypt="gpg --no-use-agent --batch --no-tty --yes -ac --force-mdc --passphrase-file $wd/pass --output $wd/msg.asc $wd/msg"
+  decrypt="gpg --no-use-agent --batch --no-tty --yes -d --passphrase-file $wd/pass --output $wd/msg $wd/msg.asc"
 }
 init_env_OPENSSL() {
   mode=OpenSSL-AES; switch_to=GPG
-  encrypt="openssl aes-256-cbc -a -salt -pass file:$A7/pass -in $A7/msg -out $A7/msg.asc"
-  decrypt="openssl aes-256-cbc -a -d -pass file:$A7/pass -in $A7/msg.asc -out $A7/msg"
+  encrypt="openssl aes-256-cbc -a -salt -pass file:$wd/pass -in $wd/msg -out $wd/msg.asc"
+  decrypt="openssl aes-256-cbc -a -d -pass file:$wd/pass -in $wd/msg.asc -out $wd/msg"
 }
 
 
@@ -107,47 +107,47 @@ menu_choice=$(zenity --list --radiolist --hide-header --title="$zero [$mode]" --
 ## Commented up the encrytion block, which is pretty much the same as the decryption one
 if [[ $menu_choice = Encrypt ]]; then
   ## Ask for ascii message to be encrypted
-  zenity --text-info --editable --title="$zero [$mode]: Type or paste text to be encrypted" --width=800 --height=600 --no-wrap >$A7/msg || MAIN
+  zenity --text-info --editable --title="$zero [$mode]: Type or paste text to be encrypted" --width=800 --height=600 --no-wrap >$wd/msg || MAIN
   ## Keep prompting until user actually enters some data
-  until [[ -s $A7/msg ]]; do
-    zenity --text-info --editable --title="$zero [$mode]: You must enter text to be encrypted" --width=800 --height=600 --no-wrap >$A7/msg || MAIN
+  until [[ -s $wd/msg ]]; do
+    zenity --text-info --editable --title="$zero [$mode]: You must enter text to be encrypted" --width=800 --height=600 --no-wrap >$wd/msg || MAIN
   done
   ## Ask for encryption passphrase
-  zenity --entry --title="$zero [$mode]" --text="Enter passphrase very carefully" --ok-label="Encrypt" >$A7/pass || MAIN
+  zenity --entry --title="$zero [$mode]" --text="Enter passphrase very carefully" --ok-label="Encrypt" >$wd/pass || MAIN
   ## Keep prompting until user enters a passphrase (zenity --entry is different than --text-info; if no input, it creates a 1byte file instead of 0byte)
-  until [[ $(wc -c <$A7/pass) -gt 1 ]]; do
-    zenity --entry --title="$zero [$mode]" --text="You must enter a passphrase" --ok-label="Encrypt" >$A7/pass || MAIN
+  until [[ $(wc -c <$wd/pass) -gt 1 ]]; do
+    zenity --entry --title="$zero [$mode]" --text="You must enter a passphrase" --ok-label="Encrypt" >$wd/pass || MAIN
   done
   ## Run our encrytion; if failed, save & report back errors, cleanup, and go to main menu
-  if ! $encrypt 2>$A7/errlog; then
-    zenity --error --title="$zero [$mode]: ENCRYPTION ERROR!" --text="$(<$A7/errlog)" --no-wrap
-    >$A7/pass; >$A7/msg
+  if ! $encrypt 2>$wd/errlog; then
+    zenity --error --title="$zero [$mode]: ENCRYPTION ERROR!" --text="$(<$wd/errlog)" --no-wrap
+    >$wd/pass; >$wd/msg
     MAIN
   fi
   ## Clear the passphrase & msg buffers ASAP, just because we can
-  >$A7/pass; >$A7/msg
+  >$wd/pass; >$wd/msg
   ## Display encrypted data back to user, loop back to main menu if they don't hit quit
-  zenity --text-info --title="$zero [$mode]: Your encrypted text" --width=650 --height=600 --no-wrap --cancel-label="Quit" --ok-label="Menu" <$A7/msg.asc || exit
-  >$A7/msg.asc
+  zenity --text-info --title="$zero [$mode]: Your encrypted text" --width=650 --height=600 --no-wrap --cancel-label="Quit" --ok-label="Menu" <$wd/msg.asc || exit
+  >$wd/msg.asc
   MAIN
 
 elif [[ $menu_choice = Decrypt ]]; then
-  zenity --text-info --editable --title="$zero [$mode]: Paste $mode-encrypted message" --width=650 --height=600 --no-wrap >$A7/msg.asc || MAIN
-  until [[ -s $A7/msg.asc ]]; do
-    zenity --text-info --editable --title="$zero [$mode]: You must enter an encrypted message" --width=800 --height=600 --no-wrap >$A7/msg.asc || MAIN
+  zenity --text-info --editable --title="$zero [$mode]: Paste $mode-encrypted message" --width=650 --height=600 --no-wrap >$wd/msg.asc || MAIN
+  until [[ -s $wd/msg.asc ]]; do
+    zenity --text-info --editable --title="$zero [$mode]: You must enter an encrypted message" --width=800 --height=600 --no-wrap >$wd/msg.asc || MAIN
   done
-  zenity --entry --title="$zero [$mode]" --text="Enter passphrase" --ok-label="Decrypt" >$A7/pass || MAIN
-  until [[ $(wc -c <$A7/pass) -gt 1 ]]; do
-    zenity --entry --title="$zero [$mode]" --text="You must enter a passphrase" --ok-label="Decrypt" >$A7/pass || MAIN
+  zenity --entry --title="$zero [$mode]" --text="Enter passphrase" --ok-label="Decrypt" >$wd/pass || MAIN
+  until [[ $(wc -c <$wd/pass) -gt 1 ]]; do
+    zenity --entry --title="$zero [$mode]" --text="You must enter a passphrase" --ok-label="Decrypt" >$wd/pass || MAIN
   done
-  if ! $decrypt 2>$A7/errlog; then
-    zenity --error --title="$zero [$mode]: DECRYPTION ERROR!" --text="$(<$A7/errlog)" --no-wrap
-    >$A7/pass; >$A7/msg.asc
+  if ! $decrypt 2>$wd/errlog; then
+    zenity --error --title="$zero [$mode]: DECRYPTION ERROR!" --text="$(<$wd/errlog)" --no-wrap
+    >$wd/pass; >$wd/msg.asc
     MAIN
   fi
-  >$A7/pass; >$A7/msg.asc
-  zenity --text-info --title="$zero [$mode]: Your decrypted text" --width=800 --height=600 --no-wrap --cancel-label="Quit" --ok-label="Menu" <$A7/msg || exit
-  >$A7/msg
+  >$wd/pass; >$wd/msg.asc
+  zenity --text-info --title="$zero [$mode]: Your decrypted text" --width=800 --height=600 --no-wrap --cancel-label="Quit" --ok-label="Menu" <$wd/msg || exit
+  >$wd/msg
   MAIN
 
 ## If they didn't choose Encrypt or Decrypt, then they chose to switch modes
