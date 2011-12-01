@@ -1,5 +1,5 @@
 #!/bin/bash
-# a7crypt v0.99i last mod 2011/11/30
+# a7crypt v0.99j last mod 2011/12/01
 # Latest version at <http://github.com/ryran/b19scripts>
 # Copyright 2011 Ryan Sawhill <ryan@b19.org>
 #
@@ -43,6 +43,7 @@
 # based on the script's current filename; not some static project name. This
 # means that you can feel free to rename the script. Everything else will go
 # along with the new name--you don't need to change anything in the content.
+# One caveat though: Don't put a space in the script name. :)
 #  
 # Feel free to hit me/the tracker up if you have any questions or suggestions!
 #-------------------------------------------------------------------------------
@@ -52,23 +53,27 @@
 umask 077
 
 ## If the filename of our script is /usr/local/bin/a7crypt, then this variable would end up being "a7crypt", which we will use throughout
-zero=$(basename $0)
+zero=$(basename "$0")
+
+## Setup settings dotdir in ~ if not already there
+dotdir=$HOME/.$zero
+[[ -d $dotdir ]] || mkdir $dotdir
 
 ## Setup a private working directory in ram or in ~
 if [[ -w /dev/shm ]]; then
   wd=$(mktemp -d /dev/shm/.$zero.$UID.XXX)
 else
-  wd=$(mktemp -d ~/.$zero.$UID.XXX)
+  wd=$(mktemp -d $dotdir/wd.XXX)
 fi
 
-## If find any existing lockfiles in home that aren't associated with a running process, then rm the old working dir and the lockfile
-for lockfile in $HOME/.$zero-*; do
-  grep -q "$0" "/proc/${lockfile##*-}/cmdline" || rm -rv $(<$lockfile) $lockfile
+## If find any existing lockfiles in home that aren't associated with a running process, then rm them and their stale working dirs
+for lockfile in $dotdir/lock-*; do
+  [[ $(</proc/${lockfile##*-}/cmdline) = /bin/bash$0 ]] || rm -rv $(readlink $lockfile) $lockfile
 done 2>/dev/null
 
-## Create a new lockfile, e.g. ~/.a7crypt-PID, containing the location of our working dir
-lockfile="$HOME/.$zero-$$"
-echo "$wd" > $lockfile
+## Create a new lockfile, e.g. ~/.a7crypt/lock-PID, which is a link to our working dir
+lockfile=$dotdir/lock-$$
+ln -s $wd $lockfile
 
 ## Set up our trap to clean-up working dir & kill any child processes (zenity) on exit
 trap "{ pkill -P $$; rm -r $wd $lockfile 2>/dev/null; }" EXIT
@@ -76,18 +81,18 @@ trap "{ pkill -P $$; rm -r $wd $lockfile 2>/dev/null; }" EXIT
 ## Here we create our preset environments for our two (or three) different modes
 init_env_GPG2() {
   mode=GPG2; switch_to=OpenSSL
-  encrypt="gpg2 --batch --no-tty --yes -ac --force-mdc --passphrase-file $wd/pass --output $wd/msg.asc $wd/msg"
-  decrypt="gpg2 --batch --no-tty --yes -d --passphrase-file $wd/pass --output $wd/msg $wd/msg.asc"
+  encrypt="gpg2 --batch --no-tty --yes -ac --force-mdc --passphrase-file $wd/pass --output $wd/output"
+  decrypt="gpg2 --batch --no-tty --yes -d --passphrase-file $wd/pass --output $wd/output"
 }
 init_env_GPG() {
   mode=GPG; switch_to=OpenSSL
-  encrypt="gpg --no-use-agent --batch --no-tty --yes -ac --force-mdc --passphrase-file $wd/pass --output $wd/msg.asc $wd/msg"
-  decrypt="gpg --no-use-agent --batch --no-tty --yes -d --passphrase-file $wd/pass --output $wd/msg $wd/msg.asc"
+  encrypt="gpg --no-use-agent --batch --no-tty --yes -ac --force-mdc --passphrase-file $wd/pass --output $wd/output"
+  decrypt="gpg --no-use-agent --batch --no-tty --yes -d --passphrase-file $wd/pass --output $wd/output"
 }
 init_env_OPENSSL() {
   mode=OpenSSL-AES; switch_to=GPG
-  encrypt="openssl aes-256-cbc -a -salt -pass file:$wd/pass -in $wd/msg -out $wd/msg.asc"
-  decrypt="openssl aes-256-cbc -a -d -pass file:$wd/pass -in $wd/msg.asc -out $wd/msg"
+  encrypt="openssl aes-256-cbc -a -salt -pass file:$wd/pass -out $wd/output"
+  decrypt="openssl aes-256-cbc -a -d -pass file:$wd/pass -out $wd/output"
 }
 
 
@@ -107,10 +112,10 @@ menu_choice=$(zenity --list --radiolist --hide-header --title="$zero [$mode]" --
 ## Commented up the encrytion block, which is pretty much the same as the decryption one
 if [[ $menu_choice = Encrypt ]]; then
   ## Ask for ascii message to be encrypted
-  zenity --text-info --editable --title="$zero [$mode]: Type or paste text to be encrypted" --width=800 --height=600 --no-wrap >$wd/msg || MAIN
+  zenity --text-info --editable --title="$zero [$mode]: Type or paste text to be encrypted" --width=800 --height=600 --no-wrap >$wd/input || MAIN
   ## Keep prompting until user actually enters some data
-  until [[ -s $wd/msg ]]; do
-    zenity --text-info --editable --title="$zero [$mode]: You must enter text to be encrypted" --width=800 --height=600 --no-wrap >$wd/msg || MAIN
+  until [[ -s $wd/input ]]; do
+    zenity --text-info --editable --title="$zero [$mode]: You must enter text to be encrypted" --width=800 --height=600 --no-wrap >$wd/input || MAIN
   done
   ## Ask for encryption passphrase
   zenity --entry --title="$zero [$mode]" --text="Enter passphrase very carefully" --ok-label="Encrypt" >$wd/pass || MAIN
@@ -121,40 +126,40 @@ if [[ $menu_choice = Encrypt ]]; then
   ## Start a progress bar dialog for those really big jobs or slow machines (this gives the user feedback and a chance to cancel)
   coproc zenity --progress --pulsate --title="$mode: Encrypting" --text="Please wait." --auto-kill --auto-close; echo 1 >&${COPROC[1]}
   ## Run our encrytion; if failed, save & report back errors, cleanup, and go to main menu
-  if ! $encrypt 2>$wd/errlog; then
+  if ! $encrypt <$wd/input 2>$wd/errlog; then
     echo 100 >&${COPROC[1]} ## Set our progress dialog to 100% so it closes
     zenity --error --title="$zero [$mode]: ENCRYPTION ERROR!" --text="$(<$wd/errlog)" --no-wrap
-    >$wd/pass; >$wd/msg
+    >$wd/pass; >$wd/input
     MAIN
   fi
   echo 100 >&${COPROC[1]} ## Set our progress dialog to 100% so it closes
-  ## Clear the passphrase & msg buffers ASAP, just because we can
-  >$wd/pass; >$wd/msg
+  ## Clear the passphrase & input buffers ASAP, just because we can
+  >$wd/pass; >$wd/input
   ## Display encrypted data back to user, loop back to main menu if they don't hit quit
-  zenity --text-info --title="$zero [$mode]: Your encrypted text" --width=650 --height=600 --no-wrap --cancel-label="Quit" --ok-label="Menu" <$wd/msg.asc || exit
-  >$wd/msg.asc
+  zenity --text-info --title="$zero [$mode]: Your encrypted text" --width=650 --height=600 --no-wrap --cancel-label="Quit" --ok-label="Menu" <$wd/output || exit
+  >$wd/output
   MAIN
 
 elif [[ $menu_choice = Decrypt ]]; then
-  zenity --text-info --editable --title="$zero [$mode]: Paste $mode-encrypted message" --width=650 --height=600 --no-wrap >$wd/msg.asc || MAIN
-  until [[ -s $wd/msg.asc ]]; do
-    zenity --text-info --editable --title="$zero [$mode]: You must enter an encrypted message" --width=800 --height=600 --no-wrap >$wd/msg.asc || MAIN
+  zenity --text-info --editable --title="$zero [$mode]: Paste $mode-encrypted message" --width=650 --height=600 --no-wrap >$wd/input || MAIN
+  until [[ -s $wd/input ]]; do
+    zenity --text-info --editable --title="$zero [$mode]: You must enter an encrypted message" --width=800 --height=600 --no-wrap >$wd/input || MAIN
   done
   zenity --entry --title="$zero [$mode]" --text="Enter passphrase" --ok-label="Decrypt" >$wd/pass || MAIN
   until [[ $(wc -c <$wd/pass) -gt 1 ]]; do
     zenity --entry --title="$zero [$mode]" --text="You must enter a passphrase" --ok-label="Decrypt" >$wd/pass || MAIN
   done
   coproc zenity --progress --pulsate --title="$mode: Decrypting" --text="Please wait." --auto-kill --auto-close; echo 1 >&${COPROC[1]}
-  if ! $decrypt 2>$wd/errlog; then
+  if ! $decrypt <$wd/input 2>$wd/errlog; then
     echo 100 >&${COPROC[1]}
     zenity --error --title="$zero [$mode]: DECRYPTION ERROR!" --text="$(<$wd/errlog)" --no-wrap
-    >$wd/pass; >$wd/msg.asc
+    >$wd/pass; >$wd/input
     MAIN
   fi
   echo 100 >&${COPROC[1]}
-  >$wd/pass; >$wd/msg.asc
-  zenity --text-info --title="$zero [$mode]: Your decrypted text" --width=800 --height=600 --no-wrap --cancel-label="Quit" --ok-label="Menu" <$wd/msg || exit
-  >$wd/msg
+  >$wd/pass; >$wd/input
+  zenity --text-info --title="$zero [$mode]: Your decrypted text" --width=800 --height=600 --no-wrap --cancel-label="Quit" --ok-label="Menu" <$wd/output || exit
+  >$wd/output
   MAIN
 
 ## If they didn't choose Encrypt or Decrypt, then they chose to switch modes
