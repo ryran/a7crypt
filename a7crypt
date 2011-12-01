@@ -1,5 +1,5 @@
 #!/bin/bash
-# a7crypt v0.99j last mod 2011/12/01
+# a7crypt v1.0.0-RC1 last mod 2011/12/01
 # Latest version at <http://github.com/ryran/b19scripts>
 # Copyright 2011 Ryan Sawhill <ryan@b19.org>
 #
@@ -16,30 +16,30 @@
 #-------------------------------------------------------------------------------
 # System requirements: zenity and one of either gpg, gpg2, or openssl.
 #
-# The original goal of this project was to make ASCII-armor text-{en,de}cryption
+# The original goal of this project was to make symmetric text {en,de}cryption
 # more accessible and easy to use for people that spend all their time in GUIs.
-# That goal has been reached -- in as satisfactory of a way as is possible,
-# until I learn python, that is -- so the next piece will be to add the ability
-# to encrypt/decrypt files.
+# After accomplishing that, I added the ability to pick files and potentially do
+# binary output. The focus is still on symmetric encryption--there are frontends
+# for key-based encrypting & decrypting.
 #
-# It almost goes without saying, but a requirement of this was that security not
-# be in any way sacrificed for this convenience.
+# It almost goes without saying, but from the beginning, a requirement of all
+# this was that security not be in any way sacrificed for the convenience. 
 #
-# To that end: no processes are run with arguments of a passphrase, nor are
+# To that end: No processes are run with arguments of a passphrase, nor are
 # passphrases or message data stored on disk; the script creates a working dir
 # in ram that is only readable by the current user and whenever message data or
 # passphrases need to be stored, they are stored there and deleted as soon as
 # they have served their purpose. (Note: We WILL fall-back to creating a working
-# dir on disk if /dev/shm is unavailable for some crazy reason.)
+# dir on disk in HOME if /dev/shm is unavailable for some crazy reason.)
 #
 # We of course want to ensure that all tmpfiles are cleaned up on exit. A simple
 # trap will cover exiting due to receiving a sigterm or sigint, but for sigkill,
-# we need something more. So each time our script runs, we create lockfiles with
-# our PID and the location of the temp working directory. That way, if an old
+# we need something more. So each time the script runs it creates lockfiles with
+# its PID and the location of the temp working directory. That way, if an old
 # instance of the script ever dies without cleaning up its potentially-sensitive
-# data, we can take out the trash the next time we run.
+# data, we can take out the trash on the next run.
 #
-# When lockfiles & temp directories are created by this script, we name them
+# When lockfiles & temp directories are created by this script, they're named
 # based on the script's current filename; not some static project name. This
 # means that you can feel free to rename the script. Everything else will go
 # along with the new name--you don't need to change anything in the content.
@@ -71,29 +71,40 @@ for lockfile in $dotdir/lock-*; do
   [[ $(</proc/${lockfile##*-}/cmdline) = /bin/bash$0 ]] || rm -rv $(readlink $lockfile) $lockfile
 done 2>/dev/null
 
-## Create a new lockfile, e.g. ~/.a7crypt/lock-PID, which is a link to our working dir
+## Create new lockfile, e.g. ~/.a7crypt/lock-PID, which is a link to the working dir
 lockfile=$dotdir/lock-$$
 ln -s $wd $lockfile
 
-## Set up our trap to clean-up working dir & kill any child processes (zenity) on exit
+## Set up trap to clean-up working dir & kill any child processes (zenity) on exit
 trap "{ pkill -P $$; rm -r $wd $lockfile 2>/dev/null; }" EXIT
 
-## Here we create our preset environments for our two (or three) different modes
+## Here we create preset environments for the different modes
 init_env_GPG2() {
-  mode=GPG2; switch_to=OpenSSL
-  encrypt="gpg2 --batch --no-tty --yes -ac --force-mdc --passphrase-file $wd/pass --output $wd/output"
+  switch_to=OpenSSL
+  encrypt="gpg2 --batch --no-tty --yes -c --force-mdc --passphrase-file $wd/pass --output $wd/output"
   decrypt="gpg2 --batch --no-tty --yes -d --passphrase-file $wd/pass --output $wd/output"
 }
 init_env_GPG() {
-  mode=GPG; switch_to=OpenSSL
-  encrypt="gpg --no-use-agent --batch --no-tty --yes -ac --force-mdc --passphrase-file $wd/pass --output $wd/output"
+  switch_to=OpenSSL
+  encrypt="gpg --no-use-agent --batch --no-tty --yes -c --force-mdc --passphrase-file $wd/pass --output $wd/output"
   decrypt="gpg --no-use-agent --batch --no-tty --yes -d --passphrase-file $wd/pass --output $wd/output"
 }
 init_env_OPENSSL() {
-  mode=OpenSSL-AES; switch_to=GPG
-  encrypt="openssl aes-256-cbc -a -salt -pass file:$wd/pass -out $wd/output"
-  decrypt="openssl aes-256-cbc -a -d -pass file:$wd/pass -out $wd/output"
+  switch_to=GPG
+  encrypt="openssl aes-256-cbc -salt -pass file:$wd/pass -out $wd/output"
+  decrypt="openssl aes-256-cbc -d -pass file:$wd/pass -out $wd/output"
 }
+
+encrypt_userinput="ENcrypt: type/paste text"
+encrypt_file="ENcrypt: select file"
+decrypt_userinput="DEcrypt: paste text"
+decrypt_file="DEcrypt: select file"
+separator="      ----------------------"
+
+## Set filemgr for giving the option to have a look at encrypted files
+for f in nautilus dolphin konqueror thunar pcmanfm firefox; do
+  command -v $f >/dev/null && { filemgr=$f; break; }
+done
 
 
 ##------------------------------------------------------------------------------
@@ -101,86 +112,263 @@ init_env_OPENSSL() {
 ##                                                                             |
 MAIN() {                                                                    #---
 
-## If in openssl mode, explain to user about openssl, and give a chance to hide warnings
-if [[ $mode = OpenSSL-AES && ! -f /tmp/$zero.nowarn.$UID ]]; then
-  zenity --question --title="$zero [$mode]: NOTICE" --text="You're running in OpenSSL mode -- either by choice, or because we could not locate GPG1 or 2. This mode uses the command \"openssl aes-256-cbc\" to encrypt your text and \"openssl aes-256-cbc -a -d\" for decryption. I'm telling you because OpenSSL doesn't add any pretty info to your encrypted message (like GPG does) which would remind you what format the data is in, nor is OpenSSL single-minded enough to decrypt a block of text you pass to it without using the proper arguments." --cancel-label="Understood, don't tell me again for a while" --ok-label="OK" --no-markup || touch /tmp/$zero.nowarn.$UID
+## (re-)Initialize our variables, depending on which mode we're in
+if [[ $mode = GPG2 ]]; then
+  init_env_GPG2
+elif [[ $mode = GPG ]]; then
+  init_env_GPG
+elif [[ $mode = OpenSSL-AES ]]; then
+  init_env_OPENSSL
 fi
 
-## Initial main menu choice
-menu_choice=$(zenity --list --radiolist --hide-header --title="$zero [$mode]" --text="What would you like to do?" --column=1 --column=2 TRUE Encrypt FALSE Decrypt FALSE "Switch to $switch_to-mode" --cancel-label="Quit") ||  exit
+## INITIAL MAIN MENU CHOICES
+menu_choice=$(zenity --list --hide-header --title="$zero [$mode]" --text="What would you like to do?" --column=1 "$encrypt_userinput" "$encrypt_file" "$separator" "$decrypt_userinput" "$decrypt_file" "$separator" "Switch to $switch_to-mode" --cancel-label="Quit" --width=220 --height=300) ||  exit
 
-## Commented up the encrytion block, which is pretty much the same as the decryption one
-if [[ $menu_choice = Encrypt ]]; then
-  ## Ask for ascii message to be encrypted
+
+if [[ $menu_choice = $separator ]]; then
+  MAIN
+
+##-----------------------------------------------
+## ENCRYPT: TYPE/PASTE TEXT
+elif [[ $menu_choice = $encrypt_userinput ]]; then
+
+  ## Warn user about openssl obscurity
+  if [[ $mode = OpenSSL-AES && ! -f $dotdir/nowarn.openssl-txt ]]; then
+    zenity --question --title="$zero [$mode]: NOTICE" --text="This OpenSSL type/paste mode uses the command \"openssl aes-256-cbc -salt -a\" to encrypt your text to ASCII-armored (plain-text) output. Unlike GPG, OpenSSL doesn't add any pretty envelope info to its encrypted data. This means that there are no GUI applications (that I know of) that will recognize and know what to do with files containing said data; to decrypt them, you will either need to use this app or use OpenSSL directly on a terminal (i.e., drop the data into a file of SOMENAME and run \"openssl aes-256-cbc -a -d -in SOMENAME\")" --cancel-label="Don't tell me again" --ok-label="OK" --no-markup || touch $dotdir/nowarn.openssl-txt
+  fi
+
+  ## We have to add some things to the default encrypt string
+  encrypt="$encrypt -a"
+
+  ## Ask for text message to be encrypted
   zenity --text-info --editable --title="$zero [$mode]: Type or paste text to be encrypted" --width=800 --height=600 --no-wrap >$wd/input || MAIN
+
   ## Keep prompting until user actually enters some data
   until [[ -s $wd/input ]]; do
     zenity --text-info --editable --title="$zero [$mode]: You must enter text to be encrypted" --width=800 --height=600 --no-wrap >$wd/input || MAIN
   done
+
   ## Ask for encryption passphrase
   zenity --entry --title="$zero [$mode]" --text="Enter passphrase very carefully" --ok-label="Encrypt" >$wd/pass || MAIN
-  ## Keep prompting until user enters a passphrase (zenity --entry is different than --text-info; if no input, it creates a 1byte file instead of 0byte)
+
+  ## Keep prompting until user enters a passphrase (zenity --entry inserts a newline even if no input so we can't use "test -s" like we can with --text-info)
   until [[ $(wc -c <$wd/pass) -gt 1 ]]; do
     zenity --entry --title="$zero [$mode]" --text="You must enter a passphrase" --ok-label="Encrypt" >$wd/pass || MAIN
   done
+
   ## Start a progress bar dialog for those really big jobs or slow machines (this gives the user feedback and a chance to cancel)
   coproc zenity --progress --pulsate --title="$mode: Encrypting" --text="Please wait." --auto-kill --auto-close; echo 1 >&${COPROC[1]}
+
   ## Run our encrytion; if failed, save & report back errors, cleanup, and go to main menu
   if ! $encrypt <$wd/input 2>$wd/errlog; then
+    >$wd/pass; >$wd/input
     echo 100 >&${COPROC[1]} ## Set our progress dialog to 100% so it closes
     zenity --error --title="$zero [$mode]: ENCRYPTION ERROR!" --text="$(<$wd/errlog)" --no-wrap
-    >$wd/pass; >$wd/input
     MAIN
   fi
+
+  ## If encryption succeeded... 
+  >$wd/pass; >$wd/input ## Clear the passphrase & input buffers ASAP, just because we can
   echo 100 >&${COPROC[1]} ## Set our progress dialog to 100% so it closes
-  ## Clear the passphrase & input buffers ASAP, just because we can
-  >$wd/pass; >$wd/input
+
   ## Display encrypted data back to user, loop back to main menu if they don't hit quit
   zenity --text-info --title="$zero [$mode]: Your encrypted text" --width=650 --height=600 --no-wrap --cancel-label="Quit" --ok-label="Menu" <$wd/output || exit
   >$wd/output
   MAIN
 
-elif [[ $menu_choice = Decrypt ]]; then
+
+##-----------------------------------------------
+## ENCRYPT: SELECT FILE
+elif [[ $menu_choice = $encrypt_file ]]; then
+
+  ## Warn user about openssl obscurity
+  if [[ $mode = OpenSSL-AES && ! -f $dotdir/nowarn.openssl-file ]]; then
+    zenity --question --title="$zero [$mode]: NOTICE" --text="This OpenSSL file-input mode uses the command \"openssl aes-256-cbc -salt -a\" to encrypt your text files to ASCII-armored (plain-text) output and the command \"openssl aes-256-cbc -salt\" to encrypt your non-text files to binary output. The resultant encrypted files are named the same as the input file, with an additional extension of \".aes256\". Unlike GPG, OpenSSL doesn't add any pretty envelope info to its encrypted data. This means that there are no GUI applications (that I know of) that will recognize and know what to do with files containing said data, no matter what the extension; to decrypt them, you will either need to use this app or use OpenSSL directly on a terminal -- e.g., run \"openssl aes-256-cbc -a -d -in FILE.txt.aes256\" to decrypt the ASCII-files or \"openssl aes-256-cbc -d -in FILE.zip.aes256\" to decrypt the binary ones (the only difference being the \"-a\")." --cancel-label="Don't tell me again" --ok-label="OK" --no-markup || touch $dotdir/nowarn.openssl-file
+  fi
+
+  ## Get file to encrypt via file-selection dialog
+  file_to_encrypt=$(zenity --file-selection --title="$zero [$mode]: Select file to be encrypted")|| MAIN
+
+  ## Keep prompting until user chooses a proper file
+  while [[ ! -s $file_to_encrypt || ! -r $file_to_encrypt ]]; do
+    file_to_encrypt=$(zenity --file-selection --title="$zero [$mode]: Could not read file; select another")|| MAIN
+  done
+  
+  ## Detect whether input is binary or text and set output mode and output filename accordingly
+  file_type=$(file -b -e soft "$file_to_encrypt") ## Get filetype
+  if [[ ${file_type%% *} = ASCII ]]; then
+    encrypt="$encrypt -a"; ascii_yesno="ASCII-armored output"
+    [[ $mode = OpenSSL-AES ]] && encrypted_file=$file_to_encrypt.aes256 || encrypted_file=$file_to_encrypt.asc
+  else
+    ascii_yesno="binary output"
+    [[ $mode = OpenSSL-AES ]] && encrypted_file=$file_to_encrypt.aes256 || encrypted_file=$file_to_encrypt.gpg
+  fi
+
+  ## Now that we know what our input and output files are going to be, setup symlinks
+  ln -sf "$file_to_encrypt" $wd/input
+  ln -sf "$encrypted_file" $wd/output
+
+  ## Ask for encryption passphrase
+  zenity --entry --title="$zero [$mode]" --text="Enter passphrase very carefully" --ok-label="Encrypt" >$wd/pass || MAIN
+
+  ## Keep prompting until user enters a passphrase (zenity --entry inserts a newline even if no input so we can't use "test -s" like we can with --text-info)
+  until [[ $(wc -c <$wd/pass) -gt 1 ]]; do
+    zenity --entry --title="$zero [$mode]" --text="You must enter a passphrase" --ok-label="Encrypt" >$wd/pass || MAIN
+  done
+
+  ## Start a progress bar dialog for those really big jobs or slow machines (this gives the user feedback and a chance to cancel)
+  coproc zenity --progress --pulsate --title="$mode: Encrypting" --text="Please wait." --auto-kill --auto-close; echo 1 >&${COPROC[1]}
+
+  ## Run our encrytion; if failed, save & report back errors, cleanup, and go to main menu
+  if ! $encrypt <$wd/input 2>/$wd/errlog; then
+    >$wd/pass; rm $wd/input $wd/output
+    echo 100 >&${COPROC[1]} ## Set our progress dialog to 100% so it closes
+    zenity --error --title="$zero [$mode]: ENCRYPTION ERROR!" --text="$(<$wd/errlog)" --no-wrap
+    MAIN
+  fi
+
+  ## If encryption succeeded... 
+  >$wd/pass; rm $wd/input $wd/output ## Clear the passphrase buffer and rm symlinks
+  echo 100 >&${COPROC[1]} ## Set our progress dialog to 100% so it closes
+
+  ## Report final encrypted filename back to user; give them a chance to see the file in their filemanager (hopefully)
+  echo -en "Successfully encrypted [ $file_to_encrypt ] with $ascii_yesno. Saved encrypted copy to:\n$encrypted_file" | zenity --text-info --title="$zero [$mode]: Your encrypted file is ready" --width=500 --height=160 --cancel-label="Show me file" --ok-label="Menu" || $filemgr "${encrypted_file%/*}"
+  MAIN
+
+
+##-----------------------------------------------
+## DECRYPT: PASTE ENCRYPTED ASCII
+elif [[ $menu_choice = $decrypt_userinput ]]; then
+
+  ## We have to add some things to the default decrypt string
+  decrypt="$decrypt -a"
+
+  ## Ask for text message to be decrypted
   zenity --text-info --editable --title="$zero [$mode]: Paste $mode-encrypted message" --width=650 --height=600 --no-wrap >$wd/input || MAIN
+
+  ## Keep prompting until user actually enters some data
   until [[ -s $wd/input ]]; do
     zenity --text-info --editable --title="$zero [$mode]: You must enter an encrypted message" --width=800 --height=600 --no-wrap >$wd/input || MAIN
   done
+
+  ## Ask for decryption passphrase
   zenity --entry --title="$zero [$mode]" --text="Enter passphrase" --ok-label="Decrypt" >$wd/pass || MAIN
+
+  ## Keep prompting until user enters a passphrase (zenity --entry inserts a newline even if no input so we can't use "test -s" like we can with --text-info)
   until [[ $(wc -c <$wd/pass) -gt 1 ]]; do
     zenity --entry --title="$zero [$mode]" --text="You must enter a passphrase" --ok-label="Decrypt" >$wd/pass || MAIN
   done
+
+  ## Start a progress bar dialog for those really big jobs or slow machines (this gives the user feedback and a chance to cancel)
   coproc zenity --progress --pulsate --title="$mode: Decrypting" --text="Please wait." --auto-kill --auto-close; echo 1 >&${COPROC[1]}
+
+  ## Run our decrytion; if failed, save & report back errors, cleanup, and go to main menu
   if ! $decrypt <$wd/input 2>$wd/errlog; then
-    echo 100 >&${COPROC[1]}
-    zenity --error --title="$zero [$mode]: DECRYPTION ERROR!" --text="$(<$wd/errlog)" --no-wrap
     >$wd/pass; >$wd/input
+    echo 100 >&${COPROC[1]} ## Set our progress dialog to 100% so it closes
+    zenity --error --title="$zero [$mode]: DECRYPTION ERROR!" --text="$(<$wd/errlog)" --no-wrap
     MAIN
   fi
-  echo 100 >&${COPROC[1]}
-  >$wd/pass; >$wd/input
+
+  ## If decryption succeeded... 
+  >$wd/pass; >$wd/input ## Clear the passphrase & input buffers ASAP, just because we can
+  echo 100 >&${COPROC[1]} ## Set our progress dialog to 100% so it closes
+
+  ## Display decrypted data back to user, loop back to main menu if they don't hit quit
   zenity --text-info --title="$zero [$mode]: Your decrypted text" --width=800 --height=600 --no-wrap --cancel-label="Quit" --ok-label="Menu" <$wd/output || exit
   >$wd/output
   MAIN
 
-## If they didn't choose Encrypt or Decrypt, then they chose to switch modes
+
+##-----------------------------------------------
+## DECRYPT: SELECT FILE
+elif [[ $menu_choice = $decrypt_file ]]; then
+
+  ## Get file to decrypt via file-selection dialog
+  file_to_decrypt=$(zenity --file-selection --title="$zero [$mode]: Select file to be decrypted")|| MAIN
+
+  ## Keep prompting until user chooses a proper file
+  while [[ ! -s $file_to_decrypt || ! -r $file_to_decrypt ]]; do
+    file_to_decrypt=$(zenity --file-selection --title="$zero [$mode]: Could not read file; select another")|| MAIN
+  done
+
+  ## Try to figure out what to suggest for the save dialog box
+  ## We start with a default, but if the file ends in .asc or .gpg or .aes256, set the suggestion to the filename minus that extension
+  decrypted_file_suggestion=${file_to_decrypt}-decrypted
+  for ext in .asc .gpg .aes256; do
+    [[ ${file_to_decrypt%$ext} = $file_to_decrypt ]] || { decrypted_file_suggestion=${file_to_decrypt%$ext}; break; }
+  done
+
+  ## Prompt user for where to save decrypted file
+  decrypted_file=$(zenity --file-selection --save --confirm-overwrite --filename="$decrypted_file_suggestion" --title="$zero [$mode]: Choose decrypted file name of '${file_to_decrypt##*/}'") || MAIN
+
+  ## Prevent user from nuking their file by reading and writing to it at the same time
+  while [[ $file_to_decrypt = $decrypted_file ]]; do
+    zenity --error --title="I just saved your life" --text="Source and destination files cannot be the same!" 
+    decrypted_file=$(zenity --file-selection --save --confirm-overwrite --filename="$decrypted_file_suggestion" --title="$zero [$mode]: Choose decrypted file name of '${file_to_decrypt##*/}'") || MAIN
+  done
+
+  ## Set ascii option for openssl, if needed
+  if [[ $mode = OpenSSL-AES ]]; then
+    file_type=$(file -b -e soft "$file_to_decrypt") ## Get filetype
+    [[ ${file_type%% *} = ASCII ]] && decrypt="$decrypt -a"
+  fi
+
+  ## Now that we know what our input and output files are going to be, setup symlinks
+  ln -sf "$file_to_decrypt" $wd/input
+  ln -sf "$decrypted_file" $wd/output
+  
+  ## Ask for decryption passphrase
+  zenity --entry --title="$zero [$mode]" --text="Enter passphrase" --ok-label="Decrypt" >$wd/pass || MAIN
+
+  ## Keep prompting until user enters a passphrase (zenity --entry inserts a newline even if no input so we can't use "test -s" like we can with --text-info)
+  until [[ $(wc -c <$wd/pass) -gt 1 ]]; do
+    zenity --entry --title="$zero [$mode]" --text="You must enter a passphrase" --ok-label="Decrypt" >$wd/pass || MAIN
+  done
+
+  ## Start a progress bar dialog for those really big jobs or slow machines (this gives the user feedback and a chance to cancel)
+  coproc zenity --progress --pulsate --title="$mode: Decrypting" --text="Please wait." --auto-kill --auto-close; echo 1 >&${COPROC[1]}
+
+  ## Run our decryption; if failed, save & report back errors, cleanup, and go to main menu
+  if ! $decrypt <$wd/input 2>/$wd/errlog; then
+    >$wd/pass; rm $wd/input $wd/output
+    echo 100 >&${COPROC[1]} ## Set our progress dialog to 100% so it closes
+    zenity --error --title="$zero [$mode]: DECRYPTION ERROR!" --text="$(<$wd/errlog)" --no-wrap
+    MAIN
+  fi
+
+  ## If decryption succeeded... 
+  >$wd/pass; rm $wd/input $wd/output ## Clear the passphrase buffer and rm symlinks
+  echo 100 >&${COPROC[1]} ## Set our progress dialog to 100% so it closes
+
+  ## Report final decrypted filename back to user; give them a chance to see the file in their filemanager (hopefully)
+  echo -en "Successfully decrypted [ $file_to_decrypt ] to new file:\n$decrypted_file" | zenity --text-info --title="$zero [$mode]: Your decrypted file is ready" --width=500 --height=160 --cancel-label="Show me file" --ok-label="Menu" || $filemgr "${decrypted_file%/*}"
+  MAIN
+
+
+##-----------------------------------------------
+## SWITCH MODES
 else
-  ## If switching to openssl mode, ensure we have openssl (haha) and initialize our variables (see init_env_* functions at the top)
+
+  ## If switching to openssl mode, ensure we have openssl (haha) before setting our mode
   if [[ $switch_to = OpenSSL ]]; then
     if command -v openssl >/dev/null; then
-      init_env_OPENSSL
+      mode=OpenSSL-AES
     else
       zenity --error --title="Missing OpenSSL" --text="OpenSSL not found in your \$PATH. That's so shocking I almost don't believe it. In any case, if you really want to try it out, you can install it using your software-management application." --width=400
     fi
-  ## If switching to gpg mode, check for gpg2, first; otherwise gpg; in the unlikely event of neither, display an error
+
+  ## If switching to gpg mode, check for gpg2 first; otherwise gpg; in the unlikely event of neither, display an error
   elif [[ $switch_to = GPG ]]; then
     if command -v gpg2 >/dev/null; then
-      init_env_GPG2
+      mode=GPG2
     elif command -v gpg >/dev/null; then
-      init_env_GPG
+      mode=GPG
     else
       zenity --error --title="Missing GPG" --text="Neither GPG nor GPG2 were found in your \$PATH. You can install either of them using your software-management application." --width=400
     fi
   fi
+
   ## Reload the main menu
   MAIN
 fi
@@ -193,25 +381,35 @@ fi
 ##                                                                             |
 ## If user runs this script with arguments, display a message                  |
 if [ $# -ne 0 ]; then                                                       #---
-  echo -e "Provides simple symmetric text encryption/decryption using GPG, GPG2, or OpenSSL\nMeant to be run interactively (no args) from the desktop -- Zenity is required"
+  echo -e "Provides simple symmetric encryption/decryption using GPG, GPG2, or OpenSSL\nMeant to be run interactively (w/ no arguments) from the desktop"
   exit
+
 ## Ensure we have zenity
 elif ! command -v zenity >/dev/null; then
   echo -e "This program relies on Zenity (which you don't have) for user-interaction\nYou can easily install it from your software-management app"
   exit 1
-## Prefer gpg2; if we have it, initialize our variables
+
+## Prefer gpg2
 elif command -v gpg2 >/dev/null; then
-  init_env_GPG2
+  mode=GPG2
+
 ## Next up, check for gpg
 elif command -v gpg >/dev/null; then
-  init_env_GPG
+  mode=GPG
+
 ## Finally, if no gpg funness, use openssl
 elif command -v openssl >/dev/null; then
-  init_env_OPENSSL
+  mode=OpenSSL-AES
+
 ## In the off-chance that none of those three are on the system, warn the user that we're on to them
 else
   zenity --error --title="You pulling my leg?" --text='Neither GPG, GPG2, nor OpenSSL were found in your $PATH..? Right. If you say so. Use your software-management application to install one of them.' --width=400
   exit 1
+fi
+
+## First-run information
+if [[ ! -f $dotdir/nowarn.1strun ]]; then
+  zenity --question --title="$zero: First-run message" --text="This app is designed to be a frontend for utilities that provide symmetric (i.e., one passphrase used for both) encryption & decryption of files or blocks of text. It doesn't set any limits on the size of the input, so be warned: if you, e.g., paste in a 150 MB text file for encryption, $zero will do it, but you'll lose upwards of 150 megs of RAM temporarily as it stores input in /dev/shm to speed operations. Just keep in mind that you'd be better off using the file-selection mode for giant text files. Enjoy!" --cancel-label="Don't tell me again" --ok-label="OK" --no-markup || touch $dotdir/nowarn.1strun
 fi
 
 ## Now that we know what mode we're running in, start main menu
