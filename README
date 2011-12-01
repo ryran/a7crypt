@@ -1,31 +1,32 @@
 # System requirements: zenity and one of either gpg, gpg2, or openssl.
 #
-# The original goal of this project was to make ASCII-armor text-{en,de}cryption
+# The original goal of this project was to make symmetric text {en,de}cryption
 # more accessible and easy to use for people that spend all their time in GUIs.
-# That goal has been reached -- in as satisfactory of a way as is possible,
-# until I learn python, that is -- so the next piece will be to add the ability
-# to encrypt/decrypt files.
+# After accomplishing that, I added the ability to pick files and potentially do
+# binary output. The focus is still on symmetric encryption--there are frontends
+# for key-based encrypting & decrypting.
 #
-# It almost goes without saying, but a requirement of this was that security not
-# be in any way sacrificed for this convenience.
+# It almost goes without saying, but from the beginning, a requirement of all
+# this was that security not be in any way sacrificed for the convenience. 
 #
-# To that end: no processes are run with arguments of a passphrase, nor are
+# To that end: No processes are run with arguments of a passphrase, nor are
 # passphrases or message data stored on disk; the script creates a working dir
 # in ram that is only readable by the current user and whenever message data or
 # passphrases need to be stored, they are stored there and deleted as soon as
 # they have served their purpose. (Note: We WILL fall-back to creating a working
-# dir on disk if /dev/shm is unavailable for some crazy reason.)
+# dir on disk in HOME if /dev/shm is unavailable for some crazy reason.)
 #
 # We of course want to ensure that all tmpfiles are cleaned up on exit. A simple
 # trap will cover exiting due to receiving a sigterm or sigint, but for sigkill,
-# we need something more. So each time our script runs, we create lockfiles with
-# our PID and the location of the temp working directory. That way, if an old
+# we need something more. So each time the script runs it creates lockfiles with
+# its PID and the location of the temp working directory. That way, if an old
 # instance of the script ever dies without cleaning up its potentially-sensitive
-# data, we can take out the trash the next time we run.
+# data, we can take out the trash on the next run.
 #
-# When lockfiles & temp directories are created by this script, we name them
+# When lockfiles & temp directories are created by this script, they're named
 # based on the script's current filename; not some static project name. This
 # means that you can feel free to rename the script. Everything else will go
 # along with the new name--you don't need to change anything in the content.
+# One caveat though: Don't put a space in the script name. :)
 #  
 # Feel free to hit me/the tracker up if you have any questions or suggestions!
