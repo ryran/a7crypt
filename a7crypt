@@ -1,5 +1,5 @@
 #!/bin/bash
-# a7crypt v1.0.0-RC1 last mod 2011/12/01
+# a7crypt v1.0.0-RC2 last mod 2011/12/01
 # Latest version at <http://github.com/ryran/b19scripts>
 # Copyright 2011 Ryan Sawhill <ryan@b19.org>
 #
@@ -78,6 +78,11 @@ ln -s $wd $lockfile
 ## Set up trap to clean-up working dir & kill any child processes (zenity) on exit
 trap "{ pkill -P $$; rm -r $wd $lockfile 2>/dev/null; }" EXIT
 
+## Set filemgr for giving the option to have a look at encrypted files
+for f in nautilus dolphin konqueror thunar pcmanfm firefox; do
+  command -v $f >/dev/null && { filemgr=$f; break; }
+done
+
 ## Here we create preset environments for the different modes
 init_env_GPG2() {
   switch_to=OpenSSL
@@ -95,16 +100,15 @@ init_env_OPENSSL() {
   decrypt="openssl aes-256-cbc -d -pass file:$wd/pass -out $wd/output"
 }
 
-encrypt_userinput="ENcrypt: type/paste text"
-encrypt_file="ENcrypt: select file"
-decrypt_userinput="DEcrypt: paste text"
-decrypt_file="DEcrypt: select file"
-separator="      ----------------------"
-
-## Set filemgr for giving the option to have a look at encrypted files
-for f in nautilus dolphin konqueror thunar pcmanfm firefox; do
-  command -v $f >/dev/null && { filemgr=$f; break; }
-done
+## Set main menu veriables for zenity --list
+menu_head_enc="[----- ENCRYPTION -----]"
+menu_enc_text="  • Type or paste text"
+menu_enc_file="  • Select file"
+menu_head_dec="[----- DECRYPTION -----]"
+menu_dec_text="  • Paste text"
+menu_dec_file="  • Select file"
+menu_blanksep="  --------------------------"
+#             "Switch to $switch_to-mode"
 
 
 ##------------------------------------------------------------------------------
@@ -122,19 +126,23 @@ elif [[ $mode = OpenSSL-AES ]]; then
 fi
 
 ## INITIAL MAIN MENU CHOICES
-menu_choice=$(zenity --list --hide-header --title="$zero [$mode]" --text="What would you like to do?" --column=1 "$encrypt_userinput" "$encrypt_file" "$separator" "$decrypt_userinput" "$decrypt_file" "$separator" "Switch to $switch_to-mode" --cancel-label="Quit" --width=220 --height=300) ||  exit
+menu_choice=$(zenity --list --hide-header --title="$zero [$mode]" --text="What would you like to do?" --column=1 "$menu_head_enc" "$menu_enc_text" "$menu_enc_file" "$menu_head_dec" "$menu_dec_text" "$menu_dec_file" "$menu_blanksep" "Switch to $switch_to-mode" --cancel-label="Quit" --height=310) ||  exit
+#--width=220 
 
-
-if [[ $menu_choice = $separator ]]; then
+##-----------------------------------------------
+## BEGIN PARSING MENU CHOICES
+## Reload menu if user picks one of the header lines
+if [[ $menu_choice = $menu_head_enc || $menu_choice = $menu_head_dec || $menu_choice = "$menu_blanksep" ]]; then
   MAIN
 
 ##-----------------------------------------------
 ## ENCRYPT: TYPE/PASTE TEXT
-elif [[ $menu_choice = $encrypt_userinput ]]; then
+elif [[ $menu_choice = $menu_enc_text ]]; then
 
   ## Warn user about openssl obscurity
   if [[ $mode = OpenSSL-AES && ! -f $dotdir/nowarn.openssl-txt ]]; then
-    zenity --question --title="$zero [$mode]: NOTICE" --text="This OpenSSL type/paste mode uses the command \"openssl aes-256-cbc -salt -a\" to encrypt your text to ASCII-armored (plain-text) output. Unlike GPG, OpenSSL doesn't add any pretty envelope info to its encrypted data. This means that there are no GUI applications (that I know of) that will recognize and know what to do with files containing said data; to decrypt them, you will either need to use this app or use OpenSSL directly on a terminal (i.e., drop the data into a file of SOMENAME and run \"openssl aes-256-cbc -a -d -in SOMENAME\")" --cancel-label="Don't tell me again" --ok-label="OK" --no-markup || touch $dotdir/nowarn.openssl-txt
+    zenity --info --title="$zero [$mode]: NOTICE" --text="OpenSSL text-input mode uses <tt>'openssl aes-256-cbc -salt -a'</tt> to encrypt text to ASCII-armored (plain-text) output. OpenSSL doesn't add any pretty envelope info to its encrypted data like GPG does, meaning there are no GUI applications (AFAIK) that will know what to do with files containing said data.\n\n<span foreground='red' weight='bold'>In short, to decrypt data encrypted with this mode, you can either:</span>\n1) use this app\n2) use OpenSSL directly on a terminal, i.e., drop the data into a file of <i><tt>SOMENAME</tt></i> and run\n\t<tt>openssl aes-256-cbc -a -d -in <i>SOMENAME</i></tt>\n\n<b>[Press Enter or Esc if you can't see OK button.]</b>"
+    touch $dotdir/nowarn.openssl-txt
   fi
 
   ## We have to add some things to the default encrypt string
@@ -179,11 +187,12 @@ elif [[ $menu_choice = $encrypt_userinput ]]; then
 
 ##-----------------------------------------------
 ## ENCRYPT: SELECT FILE
-elif [[ $menu_choice = $encrypt_file ]]; then
+elif [[ $menu_choice = $menu_enc_file ]]; then
 
   ## Warn user about openssl obscurity
   if [[ $mode = OpenSSL-AES && ! -f $dotdir/nowarn.openssl-file ]]; then
-    zenity --question --title="$zero [$mode]: NOTICE" --text="This OpenSSL file-input mode uses the command \"openssl aes-256-cbc -salt -a\" to encrypt your text files to ASCII-armored (plain-text) output and the command \"openssl aes-256-cbc -salt\" to encrypt your non-text files to binary output. The resultant encrypted files are named the same as the input file, with an additional extension of \".aes256\". Unlike GPG, OpenSSL doesn't add any pretty envelope info to its encrypted data. This means that there are no GUI applications (that I know of) that will recognize and know what to do with files containing said data, no matter what the extension; to decrypt them, you will either need to use this app or use OpenSSL directly on a terminal -- e.g., run \"openssl aes-256-cbc -a -d -in FILE.txt.aes256\" to decrypt the ASCII-files or \"openssl aes-256-cbc -d -in FILE.zip.aes256\" to decrypt the binary ones (the only difference being the \"-a\")." --cancel-label="Don't tell me again" --ok-label="OK" --no-markup || touch $dotdir/nowarn.openssl-file
+    zenity --info --title="$zero [$mode]: NOTICE" --text="OpenSSL file-input mode uses <tt>'openssl aes-256-cbc -salt'</tt> to encrypt non-text files to binary output and the same plus an option of <tt>'-a'</tt> to encrypt text files to ASCII-armored (plain-text) output. (Output files get the same name with an extension of <tt>'aes256'</tt> appended.) OpenSSL doesn't add any pretty envelope info to its encrypted data like GPG does, meaning there are no GUI applications (AFAIK) that will know what to do with files containing said data.\n\n<span foreground='red' weight='bold'>In short, to decrypt files encrypted with this mode, you can either:</span>\n1) use this app\n2) use OpenSSL directly on a terminal, e.g.,\n<tt>  openssl aes-256-cbc -a -d -in <i>FILE.txt.aes256</i></tt>\n\t(to decrypt the ASCII-files)\n<tt>  openssl aes-256-cbc -d -in <i>FILE.zip.aes256</i></tt>\n\t(to decrypt the binary files)\n\n<b>[Press Enter or Esc if you can't see OK button.]</b>"
+    touch $dotdir/nowarn.openssl-file
   fi
 
   ## Get file to encrypt via file-selection dialog
@@ -238,7 +247,7 @@ elif [[ $menu_choice = $encrypt_file ]]; then
 
 ##-----------------------------------------------
 ## DECRYPT: PASTE ENCRYPTED ASCII
-elif [[ $menu_choice = $decrypt_userinput ]]; then
+elif [[ $menu_choice = $menu_dec_text ]]; then
 
   ## We have to add some things to the default decrypt string
   decrypt="$decrypt -a"
@@ -282,7 +291,7 @@ elif [[ $menu_choice = $decrypt_userinput ]]; then
 
 ##-----------------------------------------------
 ## DECRYPT: SELECT FILE
-elif [[ $menu_choice = $decrypt_file ]]; then
+elif [[ $menu_choice = $menu_dec_file ]]; then
 
   ## Get file to decrypt via file-selection dialog
   file_to_decrypt=$(zenity --file-selection --title="$zero [$mode]: Select file to be decrypted")|| MAIN
@@ -409,7 +418,8 @@ fi
 
 ## First-run information
 if [[ ! -f $dotdir/nowarn.1strun ]]; then
-  zenity --question --title="$zero: First-run message" --text="This app is designed to be a frontend for utilities that provide symmetric (i.e., one passphrase used for both) encryption & decryption of files or blocks of text. It doesn't set any limits on the size of the input, so be warned: if you, e.g., paste in a 150 MB text file for encryption, $zero will do it, but you'll lose upwards of 150 megs of RAM temporarily as it stores input in /dev/shm to speed operations. Just keep in mind that you'd be better off using the file-selection mode for giant text files. Enjoy!" --cancel-label="Don't tell me again" --ok-label="OK" --no-markup || touch $dotdir/nowarn.1strun
+  zenity --info --title="$zero: First-run message" --text="This app is designed to be a frontend for utilities that provide symmetric (i.e., one passphrase used for both) encryption and decryption of files or blocks of text. It doesn't set any limits on the size of the input, so be warned: if e.g., you paste in a 150 MB text file for encryption, $zero will do it, but you'll lose upwards of 150 megs of RAM temporarily as it stores input in /dev/shm to speed operations. So you'd be better off using the file-selection mode for giant text files, as the file will be fed directly into the encryption program. Enjoy\!\n\n<b>[Press Enter or Esc if you can't see OK button.]</b>"
+  touch $dotdir/nowarn.1strun
 fi
 
 ## Now that we know what mode we're running in, start main menu
