@@ -1,5 +1,5 @@
 #!/bin/bash
-# a7crypt v1.0.0-RC2 last mod 2011/12/01
+# a7crypt v1.0.0-RC3 last mod 2011/12/03
 # Latest version at <http://github.com/ryran/b19scripts>
 # Copyright 2011 Ryan Sawhill <ryan@b19.org>
 #
@@ -106,7 +106,7 @@ menu_enc_text="  • Type or paste text"
 menu_enc_file="  • Select file"
 menu_head_dec="[----- DECRYPTION -----]"
 menu_dec_text="  • Paste text"
-menu_dec_file="  • Select file"
+menu_dec_file="  • Select file " ## Trailing space to make this different than $menu_enc_file
 menu_blanksep="  --------------------------"
 #             "Switch to $switch_to-mode"
 
@@ -115,6 +115,9 @@ menu_blanksep="  --------------------------"
 ## THE MAIN MENU -- the framework which everything plugs into                  |
 ##                                                                             |
 MAIN() {                                                                    #---
+
+## Ensure buffers are clear
+>$wd/pass; rm $wd/input $wd/output
 
 ## (re-)Initialize our variables, depending on which mode we're in
 if [[ $mode = GPG2 ]]; then
@@ -127,12 +130,11 @@ fi
 
 ## INITIAL MAIN MENU CHOICES
 menu_choice=$(zenity --list --hide-header --title="$zero [$mode]" --text="What would you like to do?" --column=1 "$menu_head_enc" "$menu_enc_text" "$menu_enc_file" "$menu_head_dec" "$menu_dec_text" "$menu_dec_file" "$menu_blanksep" "Switch to $switch_to-mode" --cancel-label="Quit" --height=310) ||  exit
-#--width=220 
 
 ##-----------------------------------------------
 ## BEGIN PARSING MENU CHOICES
 ## Reload menu if user picks one of the header lines
-if [[ $menu_choice = $menu_head_enc || $menu_choice = $menu_head_dec || $menu_choice = "$menu_blanksep" ]]; then
+if [[ $menu_choice = $menu_head_enc || $menu_choice = $menu_head_dec || $menu_choice = $menu_blanksep ]]; then
   MAIN
 
 ##-----------------------------------------------
@@ -165,23 +167,22 @@ elif [[ $menu_choice = $menu_enc_text ]]; then
   done
 
   ## Start a progress bar dialog for those really big jobs or slow machines (this gives the user feedback and a chance to cancel)
-  coproc zenity --progress --pulsate --title="$mode: Encrypting" --text="Please wait." --auto-kill --auto-close; echo 1 >&${COPROC[1]}
+  coproc zenity --progress --pulsate --title="$mode: Please wait" --text="Encrypting text..." --auto-kill --auto-close; echo 1 >&${COPROC[1]}
 
   ## Run our encrytion; if failed, save & report back errors, cleanup, and go to main menu
   if ! $encrypt <$wd/input 2>$wd/errlog; then
-    >$wd/pass; >$wd/input
+    >$wd/pass; >$wd/input ## Clear passphrase & input buffers ASAP
     echo 100 >&${COPROC[1]} ## Set our progress dialog to 100% so it closes
     zenity --error --title="$zero [$mode]: ENCRYPTION ERROR!" --text="$(<$wd/errlog)" --no-wrap
     MAIN
   fi
 
   ## If encryption succeeded... 
-  >$wd/pass; >$wd/input ## Clear the passphrase & input buffers ASAP, just because we can
+  >$wd/pass; >$wd/input ## Clear passphrase & input buffers ASAP
   echo 100 >&${COPROC[1]} ## Set our progress dialog to 100% so it closes
 
   ## Display encrypted data back to user, loop back to main menu if they don't hit quit
   zenity --text-info --title="$zero [$mode]: Your encrypted text" --width=650 --height=600 --no-wrap --cancel-label="Quit" --ok-label="Menu" <$wd/output || exit
-  >$wd/output
   MAIN
 
 
@@ -226,18 +227,18 @@ elif [[ $menu_choice = $menu_enc_file ]]; then
   done
 
   ## Start a progress bar dialog for those really big jobs or slow machines (this gives the user feedback and a chance to cancel)
-  coproc zenity --progress --pulsate --title="$mode: Encrypting" --text="Please wait." --auto-kill --auto-close; echo 1 >&${COPROC[1]}
+  coproc zenity --progress --pulsate --title="$mode: Please wait" --text="Encrypting $file_to_encrypt..." --auto-kill --auto-close; echo 1 >&${COPROC[1]}
 
   ## Run our encrytion; if failed, save & report back errors, cleanup, and go to main menu
   if ! $encrypt <$wd/input 2>/$wd/errlog; then
-    >$wd/pass; rm $wd/input $wd/output
+    >$wd/pass ## Clear the passphrase buffer
     echo 100 >&${COPROC[1]} ## Set our progress dialog to 100% so it closes
     zenity --error --title="$zero [$mode]: ENCRYPTION ERROR!" --text="$(<$wd/errlog)" --no-wrap
     MAIN
   fi
 
   ## If encryption succeeded... 
-  >$wd/pass; rm $wd/input $wd/output ## Clear the passphrase buffer and rm symlinks
+  >$wd/pass ## Clear the passphrase buffer
   echo 100 >&${COPROC[1]} ## Set our progress dialog to 100% so it closes
 
   ## Report final encrypted filename back to user; give them a chance to see the file in their filemanager (hopefully)
@@ -269,23 +270,22 @@ elif [[ $menu_choice = $menu_dec_text ]]; then
   done
 
   ## Start a progress bar dialog for those really big jobs or slow machines (this gives the user feedback and a chance to cancel)
-  coproc zenity --progress --pulsate --title="$mode: Decrypting" --text="Please wait." --auto-kill --auto-close; echo 1 >&${COPROC[1]}
+  coproc zenity --progress --pulsate --title="$mode: Please wait" --text="Decrypting text..." --auto-kill --auto-close; echo 1 >&${COPROC[1]}
 
   ## Run our decrytion; if failed, save & report back errors, cleanup, and go to main menu
   if ! $decrypt <$wd/input 2>$wd/errlog; then
-    >$wd/pass; >$wd/input
+    >$wd/pass; >$wd/input ## Clear passphrase & input buffers ASAP
     echo 100 >&${COPROC[1]} ## Set our progress dialog to 100% so it closes
     zenity --error --title="$zero [$mode]: DECRYPTION ERROR!" --text="$(<$wd/errlog)" --no-wrap
     MAIN
   fi
 
   ## If decryption succeeded... 
-  >$wd/pass; >$wd/input ## Clear the passphrase & input buffers ASAP, just because we can
+  >$wd/pass; >$wd/input ## Clear passphrase & input buffers ASAP
   echo 100 >&${COPROC[1]} ## Set our progress dialog to 100% so it closes
 
   ## Display decrypted data back to user, loop back to main menu if they don't hit quit
   zenity --text-info --title="$zero [$mode]: Your decrypted text" --width=800 --height=600 --no-wrap --cancel-label="Quit" --ok-label="Menu" <$wd/output || exit
-  >$wd/output
   MAIN
 
 
@@ -302,9 +302,9 @@ elif [[ $menu_choice = $menu_dec_file ]]; then
   done
 
   ## Try to figure out what to suggest for the save dialog box
-  ## We start with a default, but if the file ends in .asc or .gpg or .aes256, set the suggestion to the filename minus that extension
+  ## We start with a default, but if the file ends in these extensions, set the suggestion to the filename minus that extension
   decrypted_file_suggestion=${file_to_decrypt}-decrypted
-  for ext in .asc .gpg .aes256; do
+  for ext in .asc .gpg .pgp .aes256; do
     [[ ${file_to_decrypt%$ext} = $file_to_decrypt ]] || { decrypted_file_suggestion=${file_to_decrypt%$ext}; break; }
   done
 
@@ -336,18 +336,18 @@ elif [[ $menu_choice = $menu_dec_file ]]; then
   done
 
   ## Start a progress bar dialog for those really big jobs or slow machines (this gives the user feedback and a chance to cancel)
-  coproc zenity --progress --pulsate --title="$mode: Decrypting" --text="Please wait." --auto-kill --auto-close; echo 1 >&${COPROC[1]}
+  coproc zenity --progress --pulsate --title="$mode: Please wait" --text="Decrypting $file_to_decrypt..." --auto-kill --auto-close; echo 1 >&${COPROC[1]}
 
   ## Run our decryption; if failed, save & report back errors, cleanup, and go to main menu
   if ! $decrypt <$wd/input 2>/$wd/errlog; then
-    >$wd/pass; rm $wd/input $wd/output
+    >$wd/pass ## Clear the passphrase buffer
     echo 100 >&${COPROC[1]} ## Set our progress dialog to 100% so it closes
     zenity --error --title="$zero [$mode]: DECRYPTION ERROR!" --text="$(<$wd/errlog)" --no-wrap
     MAIN
   fi
 
   ## If decryption succeeded... 
-  >$wd/pass; rm $wd/input $wd/output ## Clear the passphrase buffer and rm symlinks
+  >$wd/pass ## Clear the passphrase buffer
   echo 100 >&${COPROC[1]} ## Set our progress dialog to 100% so it closes
 
   ## Report final decrypted filename back to user; give them a chance to see the file in their filemanager (hopefully)
