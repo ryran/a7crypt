@@ -19,8 +19,8 @@ INSTALL
 -------
 
 [a7crypt](/ryran/a7crypt/blob/master/a7crypt) is simply a bash script, so you can download it, double-click on it, and be done. However, if you'd like to install it proper-like for *all* users...
-                                                                                                                                                                                                                                          
-**1)** Copy a7crypt over to say `/usr/local/bin/` and make sure it is executable
+
+####1) Copy a7crypt over to a bin directory and make sure it is executable
 
 - *On sudo-enabled system, like Ubuntu:*
 
@@ -30,40 +30,40 @@ INSTALL
 
 ```su -lc 'cp a7crypt /usr/local/bin/; chmod 755 /usr/local/bin/a7crypt'```
 
-**2)** Next, to create an application shortcut for all users, you need to run the following, by copy and paste.
+####2) Create an application shortcut for all users (run via copy and paste)
 
 - *On sudo-enabled system, like Ubuntu:*
 
 ```
-    sudo cat > /usr/share/applications/a7crypt.desktop <<\EOF
-    [Desktop Entry]
-    Name=a7crypt
-    Comment=Simple symmetric encryption GUI using GPG or OpenSSL
-    Exec=a7crypt
-    Terminal=false
-    Type=Application
-    Icon=/usr/share/pixmaps/password.png
-    Categories=GNOME;Accessories;
-    EOF
+sudo cat > /usr/share/applications/a7crypt.desktop <<\EOF
+[Desktop Entry]
+Name=a7crypt
+Comment=Simple symmetric encryption GUI using GPG or OpenSSL
+Exec=a7crypt
+Terminal=false
+Type=Application
+Icon=/usr/share/pixmaps/password.png
+Categories=GNOME;Accessories;
+EOF
 ```
 
 - *If that doesn't work:*
 
 ```
-    su -lc 'cat > /usr/share/applications/a7crypt.desktop <<\EOF
-    [Desktop Entry]
-    Name=a7crypt
-    Comment=Simple symmetric encryption GUI using GPG or OpenSSL
-    Exec=a7crypt
-    Terminal=false
-    Type=Application
-    Icon=/usr/share/pixmaps/password.png
-    Categories=GNOME;Accessories;
-    EOF'
+su -lc 'cat > /usr/share/applications/a7crypt.desktop <<\EOF
+[Desktop Entry]
+Name=a7crypt
+Comment=Simple symmetric encryption GUI using GPG or OpenSSL
+Exec=a7crypt
+Terminal=false
+Type=Application
+Icon=/usr/share/pixmaps/password.png
+Categories=GNOME;Accessories;
+EOF'
 ```
 Don't miss that trailing `'` mark!
 
-**3)** Make some toast!
+####3) Make some toast!
 
 
 BACKGROUND
@@ -97,13 +97,13 @@ LICENSE
 
 Copyright (C) 2011 [Ryan Sawhill](http://b19.org) aka [ryran](https://github.com/ryran)
 
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-    General Public License [<gnu.org/licenses/gpl.html>](http://gnu.org/licenses/gpl.html>) for more details.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+General Public License [<gnu.org/licenses/gpl.html>](http://gnu.org/licenses/gpl.html>) for more details.
 
