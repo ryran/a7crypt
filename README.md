@@ -23,15 +23,18 @@ INSTALL
 **1)** Copy a7crypt over to say `/usr/local/bin/` and make sure it is executable
 
 - *On sudo-enabled system, like Ubuntu:*
-```sudo cp a7crypt /usr/local/bin/; sudo chmod 755 /usr/local/bin/a7crypt```
+```
+sudo cp a7crypt /usr/local/bin/; sudo chmod 755 /usr/local/bin/a7crypt```
 
 - *If that doesn't work:*
-```su -lc 'cp a7crypt /usr/local/bin/; chmod 755 /usr/local/bin/a7crypt'```
+```
+su -lc 'cp a7crypt /usr/local/bin/; chmod 755 /usr/local/bin/a7crypt'```
 
 **2)** Next, to create an application shortcut for all users, you need to run the following, by copy and paste.
 
 - *On sudo-enabled system, like Ubuntu:*
-```    sudo cat > /usr/share/applications/a7crypt.desktop <<\EOF
+```
+    sudo cat > /usr/share/applications/a7crypt.desktop <<\EOF
     [Desktop Entry]
     Name=a7crypt
     Comment=Simple symmetric encryption GUI using GPG or OpenSSL
@@ -44,7 +47,8 @@ INSTALL
 ```
 
 - *If that doesn't work:*
-```    su -lc 'cat > /usr/share/applications/a7crypt.desktop <<\EOF
+```
+    su -lc 'cat > /usr/share/applications/a7crypt.desktop <<\EOF
     [Desktop Entry]
     Name=a7crypt
     Comment=Simple symmetric encryption GUI using GPG or OpenSSL
@@ -78,14 +82,18 @@ And a final note: When lockfiles & temp directories are created by this script, 
 Feel free to hit me/the tracker up if you have any questions or suggestions!
 
 
-### AUTHORS:
+AUTHORS
+-------
+
 [ryran](https://github.com/ryran)
 
 And so far, that's it. Feel free to contribute!
 
-### LICENSE:
 
-Copyright (C) 2011 Ryan Sawhill aka ryran
+LICENSE
+-------
+
+Copyright (C) 2011 [Ryan Sawhill](http://b19.org) aka [ryran](https://github.com/ryran)
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -95,5 +103,5 @@ Copyright (C) 2011 Ryan Sawhill aka ryran
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-    General Public License <gnu.org/licenses/gpl.html> for more details.
+    General Public License [<gnu.org/licenses/gpl.html>](http://gnu.org/licenses/gpl.html>) for more details.
 
