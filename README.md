@@ -24,16 +24,16 @@ INSTALL
 
 - *On sudo-enabled system, like Ubuntu:*
 
-```bash
-sudo cp a7crypt /usr/local/bin/; sudo chmod 755 /usr/local/bin/a7crypt```
+```sudo cp a7crypt /usr/local/bin/; sudo chmod 755 /usr/local/bin/a7crypt```
 
 - *If that doesn't work:*
-```
-su -lc 'cp a7crypt /usr/local/bin/; chmod 755 /usr/local/bin/a7crypt'```
+
+```su -lc 'cp a7crypt /usr/local/bin/; chmod 755 /usr/local/bin/a7crypt'```
 
 **2)** Next, to create an application shortcut for all users, you need to run the following, by copy and paste.
 
 - *On sudo-enabled system, like Ubuntu:*
+
 ```
     sudo cat > /usr/share/applications/a7crypt.desktop <<\EOF
     [Desktop Entry]
@@ -48,6 +48,7 @@ su -lc 'cp a7crypt /usr/local/bin/; chmod 755 /usr/local/bin/a7crypt'```
 ```
 
 - *If that doesn't work:*
+
 ```
     su -lc 'cat > /usr/share/applications/a7crypt.desktop <<\EOF
     [Desktop Entry]
