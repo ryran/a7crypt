@@ -5,6 +5,7 @@
 
 See [moar-SCREENSHOTS](/ryran/a7crypt/blob/master/moar-SCREENSHOTS.md) for more.
 
+
 ### DEPENDENCIES:
 **bash** (haha), **zenity**, and one of: **gpg**, **gpg2**, or **openssl**
 
@@ -12,18 +13,18 @@ See [moar-SCREENSHOTS](/ryran/a7crypt/blob/master/moar-SCREENSHOTS.md) for more.
 ### INSTALL:
 [a7crypt](/ryran/a7crypt/blob/master/a7crypt) is simply a bash script, so you can download it, double-click on it, and be done. However, if you'd like to install it proper-like for *all* users...
 
-1. Copy a7crypt over to say /usr/local/bin/ and make sure it is executable
+1) Copy a7crypt over to say `/usr/local/bin/` and make sure it is executable
 - *On sudo-enabled system, like Ubuntu:*
-	sudo cp a7crypt /usr/local/bin/; sudo chmod 755 /usr/local/bin/a7crypt
+`sudo cp a7crypt /usr/local/bin/; sudo chmod 755 /usr/local/bin/a7crypt`
 - *If that doesn't work:*
-	su -lc 'cp a7crypt /usr/local/bin/; chmod 755 /usr/local/bin/a7crypt'
+`su -lc 'cp a7crypt /usr/local/bin/; chmod 755 /usr/local/bin/a7crypt'`
 
-2. Next, to create an application shortcut for all users, you need to copy everything from the line beginning with `[Desktop` to the line ending with `Accessories;` and paste it into a file called `/usr/share/applications/a7crypt.desktop`.
+2) Next, to create an application shortcut for all users, you need to copy everything from the line beginning with `[Desktop` to the line ending with `Accessories;` and paste it into a file called `/usr/share/applications/a7crypt.desktop`.
 
 Alternatively, you could run the following, by copy and paste.
 
 - *On sudo-enabled system, like Ubuntu:*
-	sudo cat > /usr/share/applications/a7crypt.desktop <<\EOF
+`	sudo cat > /usr/share/applications/a7crypt.desktop <<\EOF
 	[Desktop Entry]
 	Name=a7crypt
 	Comment=Simple symmetric encryption GUI using GPG or OpenSSL
@@ -32,10 +33,10 @@ Alternatively, you could run the following, by copy and paste.
 	Type=Application
 	Icon=/usr/share/pixmaps/password.png
 	Categories=GNOME;Accessories;
-	EOF
+	EOF`
 
 - *If that doesn't work:*
-	su -lc 'cat > /usr/share/applications/a7crypt.desktop <<\EOF
+`	su -lc 'cat > /usr/share/applications/a7crypt.desktop <<\EOF
 	[Desktop Entry]
 	Name=a7crypt
 	Comment=Simple symmetric encryption GUI using GPG or OpenSSL
@@ -44,9 +45,9 @@ Alternatively, you could run the following, by copy and paste.
 	Type=Application
 	Icon=/usr/share/pixmaps/password.png
 	Categories=GNOME;Accessories;
-	EOF'
+	EOF'`
 
-3. Make some toast!
+3 Make some toast!
 
 ### BACKGROUND:
 
