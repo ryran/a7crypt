@@ -1,5 +1,5 @@
 #!/bin/bash
-# a7crypt v1.0.0-RC3 last mod 2011/12/03
+# a7crypt v1.0.0-RC4 last mod 2011/12/03
 # Latest version at <http://github.com/ryran/b19scripts>
 # Copyright 2011 Ryan Sawhill <ryan@b19.org>
 #
@@ -53,7 +53,7 @@
 umask 077
 
 ## If the filename of our script is /usr/local/bin/a7crypt, then this variable would end up being "a7crypt", which we will use throughout
-zero=$(basename "$0")
+zero=${0##*/}
 
 ## Setup settings dotdir in ~ if not already there
 dotdir=$HOME/.$zero
@@ -99,6 +99,10 @@ init_env_OPENSSL() {
   encrypt="openssl aes-256-cbc -salt -pass file:$wd/pass -out $wd/output"
   decrypt="openssl aes-256-cbc -d -pass file:$wd/pass -out $wd/output"
 }
+
+## Update function wooooo
+
+
 
 ## Set main menu veriables for zenity --list
 menu_head_enc="[----- ENCRYPTION -----]"
