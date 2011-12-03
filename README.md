@@ -1,30 +1,42 @@
-# a7crypt - GUI frontend for symmetric encryption/decryption
+a7crypt - GUI frontend for symmetric encryption/decryption
+==========================================================
 
-### SCREENSHOTS:
+
+SCREENSHOTS
+-----------
 ![](http://b19.org/linux/a7crypt/menu.png)
 
 See [moar-SCREENSHOTS](/ryran/a7crypt/blob/master/moar-SCREENSHOTS.md) for more.
 
 
-### DEPENDENCIES:
+
+DEPENDENCIES
+------------
 **bash** (haha), **zenity**, and one of: **gpg**, **gpg2**, or **openssl**
 
 
-### INSTALL:
+INSTALL
+-------
+
 [a7crypt](/ryran/a7crypt/blob/master/a7crypt) is simply a bash script, so you can download it, double-click on it, and be done. However, if you'd like to install it proper-like for *all* users...
 
 1) Copy a7crypt over to say `/usr/local/bin/` and make sure it is executable
 - *On sudo-enabled system, like Ubuntu:*
-`sudo cp a7crypt /usr/local/bin/; sudo chmod 755 /usr/local/bin/a7crypt`
+```bash
+sudo cp a7crypt /usr/local/bin/; sudo chmod 755 /usr/local/bin/a7crypt
+```
 - *If that doesn't work:*
-`su -lc 'cp a7crypt /usr/local/bin/; chmod 755 /usr/local/bin/a7crypt'`
+```bash
+su -lc 'cp a7crypt /usr/local/bin/; chmod 755 /usr/local/bin/a7crypt'
+```
 
 2) Next, to create an application shortcut for all users, you need to copy everything from the line beginning with `[Desktop` to the line ending with `Accessories;` and paste it into a file called `/usr/share/applications/a7crypt.desktop`.
 
 Alternatively, you could run the following, by copy and paste.
 
 - *On sudo-enabled system, like Ubuntu:*
-`	sudo cat > /usr/share/applications/a7crypt.desktop <<\EOF
+```bash
+	sudo cat > /usr/share/applications/a7crypt.desktop <<\EOF
 	[Desktop Entry]
 	Name=a7crypt
 	Comment=Simple symmetric encryption GUI using GPG or OpenSSL
@@ -33,10 +45,12 @@ Alternatively, you could run the following, by copy and paste.
 	Type=Application
 	Icon=/usr/share/pixmaps/password.png
 	Categories=GNOME;Accessories;
-	EOF`
+	EOF
+```
 
 - *If that doesn't work:*
-`	su -lc 'cat > /usr/share/applications/a7crypt.desktop <<\EOF
+```bash
+	su -lc 'cat > /usr/share/applications/a7crypt.desktop <<\EOF
 	[Desktop Entry]
 	Name=a7crypt
 	Comment=Simple symmetric encryption GUI using GPG or OpenSSL
@@ -45,11 +59,14 @@ Alternatively, you could run the following, by copy and paste.
 	Type=Application
 	Icon=/usr/share/pixmaps/password.png
 	Categories=GNOME;Accessories;
-	EOF'`
+	EOF'
+```
 
 3 Make some toast!
 
-### BACKGROUND:
+
+BACKGROUND
+----------
 
 The original goal of this project was to make symmetric text {en,de}cryption more accessible and easy to use. While GPG rocks (for both symmetric & public-key) if you're comfortable on the commandline, and there are GUI encryption options for key-based, there's not much out there for people who need to do the simplest kind of encryption -- with a shared passphrase.
 
