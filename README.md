@@ -24,7 +24,8 @@ INSTALL
 
 - *On sudo-enabled system, like Ubuntu:*
 
-```sudo cp a7crypt /usr/local/bin/; sudo chmod 755 /usr/local/bin/a7crypt```
+```bash
+sudo cp a7crypt /usr/local/bin/; sudo chmod 755 /usr/local/bin/a7crypt```
 
 - *If that doesn't work:*
 ```
