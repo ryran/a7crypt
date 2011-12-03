@@ -6,7 +6,7 @@ SCREENSHOTS
 -----------
 ![](http://b19.org/linux/a7crypt/menu.png)
 
-See [moar-SCREENSHOTS](/ryran/a7crypt/blob/master/moar-SCREENSHOTS.md) for more.
+See [moarSCREENSHOTS](/ryran/a7crypt/blob/master/moarSCREENSHOTS.md) for more.
 
 
 
