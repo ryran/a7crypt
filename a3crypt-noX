@@ -1,0 +1,106 @@
+#!/bin/bash
+# a3crypt v1.0.1 last mod 2011/12/03
+# Latest version at <http://github.com/ryran/a7crypt>
+# Copyright 2011 Ryan Sawhill <ryan@b19.org>
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+#    General Public License <gnu.org/licenses/gpl.html> for more details.
+#-------------------------------------------------------------------------------
+# This is a simple wrapper for gpg & openssl to do SYMMETRIC TEXT encryption
+# from the commandline, in contrast to a7crypt which is much more complicated,
+# and makes full use of GUI dialog boxes--even providing file encryption.
+#
+# There's not much to say. Just run it from a terminal and all will be clear.
+#
+# a6crypt makes no attempts to work around gpg2's lack of a --no-use-agent
+# option, so if you aren't using the OpenSSL mode and you don't have gpg, you
+# will get a GUI or TUI password dialog from gpg2. I didn't want to make things
+# overly complicated. That said, for the GUI app with many more features, see:
+#    <github.com/ryran/a7crypt>
+#
+# Feel free to hit me up if you have any questions or suggestions.
+#-------------------------------------------------------------------------------
+
+## Since we're requiring the user to press Ctrl-c to exit, we shouldn't throw a bad exit code (also, whitespace is nice)
+trap "{ echo; exit; }" INT
+
+## First off, if user requests to use openssl...
+if [[ $1 = '--openssl' || $1 = '-o' ]]; then
+  command -v openssl >/dev/null && mode=OpenSSL-AES || { echo "Shockingly, you don't appear to have openssl on your system."; exit 200; }
+
+## Else if they try to run with help args or something
+elif [[ $# -ne 0 ]]; then
+  echo -e "Simple symmetric encryption/decryption using GPG(2) or OpenSSL. Meant to be run\ninteractively w/no args; however, an option of --openssl or -o is supported,\nwhich will force use of OpenSSL instead of GPG for both encryption & decryption."
+  exit 1
+
+## Next up, check for gpg and use it if we have it
+elif command -v gpg >/dev/null; then
+  mode=GPG
+
+## Otherwise, check for gpg2 and use it
+elif command -v gpg2 >/dev/null; then
+  mode=GPG2
+
+## Finally, if no gpg funness, use openssl
+elif command -v openssl >/dev/null; then
+  mode=OpenSSL-AES
+
+## If none available, let 'em know
+else
+  echo "Neither GPG, GPG2, nor OpenSSL were found in your \$PATH. Shocking."
+  exit 255
+fi
+
+
+## Set colors
+c_BLK='\E[0m' ; c_RED='\E[1;31m' ; c_BLU='\E[1;34m' ; c_GRN='\E[1;32m' ; c_GRY='\E[1;30m'
+
+
+MAIN() {
+echo -en "${c_GRY}[$mode]${c_BLK} Would you like to [${c_RED}e${c_BLK}]ncrypt or [${c_RED}d${c_BLK}]ecrypt? "
+read
+
+if [[ $REPLY = e ]]; then
+	echo -e "${c_BLU}Steps: enter passphrase, type/paste text, Ctrl-d$ctrld to encrypt"
+	echo -e "Pressing Ctrl-d on an EMPTY line will make distinguishing encrypted text easier${c_BLK}\n"
+	$encrypt
+	echo -en "\n${c_GRN}DONE! Ctrl-c to exit or Enter to go again${c_BLK}"
+	read
+	MAIN
+elif [[ $REPLY = d ]]; then
+	echo -e "${c_BLU}Steps: $steps_decrypt, Ctrl-d$ctrld to decrypt${c_BLK}\n"
+	$decrypt
+	echo -en "\n${c_GRN}DONE! Ctrl-c to exit or Enter to go again${c_BLK}"
+	read
+	MAIN
+else
+	echo "Improper input -- must enter 'e' or 'd'"
+	MAIN
+fi
+}
+
+
+## Initialize our variables, depending on which mode we're in
+if [[ $mode = GPG ]]; then
+  encrypt="gpg --no-use-agent -ac --force-mdc"; decrypt="gpg --no-use-agent -d"
+  steps_decrypt="paste GPG-encrypted message, enter passphrase when prompted"
+  unset ctrld
+elif [[ $mode = GPG2 ]]; then
+  encrypt="gpg2 -ac --force-mdc"; decrypt="gpg2 -d"
+  steps_decrypt="paste GPG-encrypted message, enter passphrase if prompted (if not prompted, GPG2 agent remembered your passphrase)"
+  unset ctrld
+elif [[ $mode = OpenSSL-AES ]]; then
+  encrypt="openssl aes-256-cbc -salt -a"; decrypt="openssl aes-256-cbc -d -a"
+  steps_decrypt="enter passphrase, paste OpenSSL-AES-encrypted message"
+  ctrld="TWICE "
+fi
+
+## Get 'er done
+MAIN
