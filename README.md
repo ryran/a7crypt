@@ -20,16 +20,18 @@ INSTALL
 
 [a7crypt](/ryran/a7crypt/blob/master/a7crypt) is simply a bash script, so you can download it, double-click on it, and be done. However, if you'd like to install it proper-like for *all* users...
 
+---
 ####1) Copy a7crypt over to a bin directory and make sure it is executable
 
 - *On sudo-enabled system, like Ubuntu:*
 
-```sudo cp a7crypt /usr/local/bin/; sudo chmod 755 /usr/local/bin/a7crypt```
+```	sudo cp a7crypt /usr/local/bin/; sudo chmod 755 /usr/local/bin/a7crypt```
 
 - *If that doesn't work:*
 
-```su -lc 'cp a7crypt /usr/local/bin/; chmod 755 /usr/local/bin/a7crypt'```
+```	su -lc 'cp a7crypt /usr/local/bin/; chmod 755 /usr/local/bin/a7crypt'```
 
+---
 ####2) Create an application shortcut for all users (run via copy and paste)
 
 - *On sudo-enabled system, like Ubuntu:*
@@ -63,6 +65,7 @@ EOF'
 ```
 Don't miss that trailing `'` mark!
 
+---
 ####3) Make some toast!
 
 
