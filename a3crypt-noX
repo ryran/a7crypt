@@ -19,7 +19,7 @@
 #
 # There's not much to say. Just run it from a terminal and all will be clear.
 #
-# a6crypt makes no attempts to work around gpg2's lack of a --no-use-agent
+# a3crypt makes no attempts to work around gpg2's lack of a --no-use-agent
 # option, so if you aren't using the OpenSSL mode and you don't have gpg, you
 # will get a GUI or TUI password dialog from gpg2. I didn't want to make things
 # overly complicated. That said, for the GUI app with many more features, see:
