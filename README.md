@@ -23,8 +23,8 @@ INSTALL
 **1)** Copy a7crypt over to say `/usr/local/bin/` and make sure it is executable
 
 - *On sudo-enabled system, like Ubuntu:*
-```
-sudo cp a7crypt /usr/local/bin/; sudo chmod 755 /usr/local/bin/a7crypt```
+
+```sudo cp a7crypt /usr/local/bin/; sudo chmod 755 /usr/local/bin/a7crypt```
 
 - *If that doesn't work:*
 ```
