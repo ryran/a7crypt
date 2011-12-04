@@ -77,7 +77,7 @@ BACKGROUND
 
 The original goal of this project was to make symmetric text {en,de}cryption more accessible and easy to use. While GPG rocks (for both symmetric & public-key) if you're comfortable on the commandline, and there are GUI encryption options for key-based, there's not much out there for people who need to do the simplest kind of encryption -- with a shared passphrase.
 
-First I developed a super-simple wrapper for the commandline. (To see an evolution of that, check out [a3crypt](/ryran/a7crypt/blob/master/a3crypt-noX), which doesn't have any of the bells and whistles of a7crypt.) Once that was complete, I decided it was time to the fill the hole of a GUI for symmetric encryption, and began fleshing it out and adding features, quickly adding the ability to pick files (and have the script automatically choose ASCII or binary output type based on the chosen file).
+First I developed a super-simple wrapper for the commandline. (To see an evolution of that, check out [a3crypt](/ryran/a7crypt/blob/master/a3crypt-noX), which doesn't have any of the bells and whistles of a7crypt. Screenshots of terminal action at the end of the [moarSCREENSHOTS](/ryran/a7crypt/blob/master/moarSCREENSHOTS.md) page.) Once that was complete, I decided it was time to the fill the hole of a GUI for symmetric encryption, and began fleshing it out and adding features, quickly adding the ability to pick files (and have the script automatically choose ASCII or binary output type based on the chosen file).
 
 It almost goes without saying, but from the beginning, a requirement of all this was that security not be in any way sacrificed for the convenience.
 
