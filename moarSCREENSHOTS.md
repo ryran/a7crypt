@@ -1,4 +1,4 @@
-# a7crypt - moar screenshots
+#a7crypt - moar screenshots
 
 No time to organize and annotate these ATM.
 
@@ -34,3 +34,8 @@ No time to organize and annotate these ATM.
 ![](http://b19.org/linux/a7crypt/update3A.png)
 ![](http://b19.org/linux/a7crypt/update4A.png)
 
+#Screenshots of the simpler a3crypt in action
+![](http://b19.org/linux/a7crypt/a3crypt_gpg_1.png)
+![](http://b19.org/linux/a7crypt/a3crypt_gpg_2.png)
+![](http://b19.org/linux/a7crypt/a3crypt_openssl_1.png)
+![](http://b19.org/linux/a7crypt/a3crypt_openssl_1.png)
