@@ -1,5 +1,5 @@
 #!/bin/bash
-# a7crypt v1.0.0-RC6 last mod 2011/12/04
+# a7crypt v1.0.0-RC7 last mod 2011/12/04
 # Latest version at <http://github.com/ryran/b19scripts>
 # Copyright 2011 Ryan Sawhill <ryan@b19.org>
 #
@@ -442,10 +442,11 @@ UPDATE() {                                                                  #---
   ## Compare currently running a7crypt with downloaded file -- if they're the same ...
   if diff $0 $latest_version_file >/dev/null; then
     zenity --info --title="$zero [UPDATE]" --text="<tt>$0</tt> is the same version as what is on github, i.e.,\n\t${blue}$version${reset}"
+    MAIN
 
   ## Else, if they're different, let's get started...
   else
-    zenity --question --title="$zero [UPDATE]" --text="The version you are running reports as:\n\t${blue}<tt>$version</tt>${reset}\nThe version on github appears to be different and reports as:\n\t${orange}<tt>$latest_version</tt>${reset}" --cancel-label="Show differences" --ok-label="Next question" ||
+    zenity --question --title="$zero [UPDATE]" --text="The version you are running reports as:\n\t${blue}<tt>$version</tt>${reset}\nThe version on github appears to be different and reports as:\n\t${orange}<tt>$latest_version</tt>${reset}" --cancel-label="Show differences" --ok-label="Next" ||
     {
       ## Create a diff file
       diff -u $0 $latest_version_file > $diff_file
@@ -457,7 +458,7 @@ UPDATE() {                                                                  #---
     }
 
     ## Confirm update
-    zenity --question --title="$zero [UPDATE]" --text="Replace <tt>$0</tt> with the latest version?" --cancel-label="Take me back to Menu" --ok-label="UPDATE" || MAIN
+    zenity --question --title="$zero [UPDATE]" --text="Replace <tt>$0</tt> with the latest version?" --cancel-label="Back to Menu" --ok-label="UPDATE" || MAIN
   
     ## If script location is writable, then let's do the do and save output to errlog
     if [[ -w $0 ]]; then
