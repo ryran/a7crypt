@@ -4,7 +4,6 @@ a7crypt - GUI frontend for symmetric encryption/decryption
 
 SCREENSHOTS
 -----------
-![](http://b19.org/linux/a7crypt/menu.png)
 
 See [moarSCREENSHOTS](/ryran/a7crypt/blob/master/moarSCREENSHOTS.md) for more.
 
