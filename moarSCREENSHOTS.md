@@ -1,20 +1,36 @@
-## a7crypt - GUI frontend for symmetric encryption/decryption
+# a7crypt - moar screenshots
 
-### MOAR SCREENSHOTS
-![](http://b19.org/linux/a7crypt/menu.png)
-![](http://b19.org/linux/a7crypt/menu_openssl.png)
+No time to organize and annotate these ATM.
+
+##Main
+---
+![](http://b19.org/linux/a7crypt/menuA.png)
+![](http://b19.org/linux/a7crypt/menu_opensslA.png)
+
+##Warnings
+---
 ![](http://b19.org/linux/a7crypt/warn_firstrun.png)
-![](http://b19.org/linux/a7crypt/pass.png)
-![](http://b19.org/linux/a7crypt/enc_text2.png)
 ![](http://b19.org/linux/a7crypt/warn_openssl_text.png)
-![](http://b19.org/linux/a7crypt/enc_text_openssl.png)
+![](http://b19.org/linux/a7crypt/warn_openssl_file.png)
+
+##Encrypting text-entry
+---
+![](http://b19.org/linux/a7crypt/enc_text1.png)
+![](http://b19.org/linux/a7crypt/pass.png)
+![](http://b19.org/linux/a7crypt/enc_text3.png)
+![](http://b19.org/linux/a7crypt/enc_text_opensslA.png)
+
+##Encrypting files
+---
 ![](http://b19.org/linux/a7crypt/enc_file1.png)
 ![](http://b19.org/linux/a7crypt/enc_file2.png)
 ![](http://b19.org/linux/a7crypt/enc_file3.png)
-![](http://b19.org/linux/a7crypt/warn_openssl_text.png)
-![](http://b19.org/linux/a7crypt/dec_file2.png)
-![](http://b19.org/linux/a7crypt/dec_file3.png)
-![](http://b19.org/linux/a7crypt/update2.png)
-![](http://b19.org/linux/a7crypt/update3.png)
-![](http://b19.org/linux/a7crypt/update4.png)
+![](http://b19.org/linux/a7crypt/dec_file2A.png)
+![](http://b19.org/linux/a7crypt/dec_file3A.png)
+
+##Update system
+---
+![](http://b19.org/linux/a7crypt/update2A.png)
+![](http://b19.org/linux/a7crypt/update3A.png)
+![](http://b19.org/linux/a7crypt/update4A.png)
 

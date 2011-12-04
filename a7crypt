@@ -1,6 +1,6 @@
 #!/bin/bash
-# a7crypt v1.0.0-RC7 last mod 2011/12/04
-# Latest version at <http://github.com/ryran/b19scripts>
+# a7crypt v1.0.0-RC8 last mod 2011/12/04
+# Latest version at <http://github.com/ryran/a7crypt>
 # Copyright 2011 Ryan Sawhill <ryan@b19.org>
 #
 #    This program is free software: you can redistribute it and/or modify
@@ -66,8 +66,7 @@ umask 077
 zero=${0##*/}
 
 ## Setup settings dotdir in ~ if not already there
-dotdir=$HOME/.$zero
-[[ -d $dotdir ]] || mkdir $dotdir
+dotdir=$HOME/.$zero ; [[ -d $dotdir ]] || mkdir $dotdir
 
 ## Setup a private working directory in ram or in ~
 if [[ -w /dev/shm ]]; then
@@ -78,21 +77,24 @@ fi
 
 ## If find any existing lockfiles in home that aren't associated with a running process, then rm them and their stale working dirs
 for lockfile in $dotdir/lock-*; do
-  [[ $(</proc/${lockfile##*-}/cmdline) = /bin/bash$0 ]] || rm -rv $(readlink $lockfile) $lockfile
+  [[ $(</proc/${lockfile##*-}/cmdline) != /bin/bash$0 ]] && rm -rv $(readlink $lockfile) $lockfile
 done 2>/dev/null
 
 ## Create new lockfile, e.g. ~/.a7crypt/lock-PID, which is a link to the working dir
-lockfile=$dotdir/lock-$$
-ln -s $wd $lockfile
+lockfile=$dotdir/lock-$$ ; ln -s $wd $lockfile
 
 ## Set up trap to clean-up working dir & kill any child processes (zenity) on exit
 trap "{ pkill -P $$; rm -r $wd $lockfile 2>/dev/null; }" EXIT
 
 ## Set filemgr for giving the option to have a look at encrypted files
-for f in nautilus dolphin konqueror thunar pcmanfm firefox; do
-  command -v $f >/dev/null && { filemgr=$f; break; }
+for filemgr in nautilus dolphin konqueror thunar pcmanfm firefox; do
+  command -v $filemgr >/dev/null && break
 done
 
+## Set viewer for looking at stuff
+for viewer in gedit gvim kedit; do
+  command -v $viewer >/dev/null && break
+done
 
 ## Here we create preset environments for the different modes
 init_env_GPG2() {
@@ -199,7 +201,7 @@ elif [[ $menu_choice = $menu_enc_text ]]; then
   echo 100 >&${COPROC[1]} ## Set our progress dialog to 100% so it closes
 
   ## Display encrypted data back to user, loop back to main menu if they don't hit quit
-  zenity --text-info --title="$zero [$mode]: Your encrypted text" --width=650 --height=600 --no-wrap --cancel-label="Quit" --ok-label="Menu" <$wd/output || exit
+  zenity --text-info --title="$zero [$mode]: Your encrypted text" --width=650 --height=600 --no-wrap --cancel-label="Show in txt editor" --ok-label="Menu" <$wd/output || { $viewer $wd/output; sleep 6; }
   MAIN
 
 
@@ -267,7 +269,7 @@ elif [[ $menu_choice = $menu_enc_file ]]; then
 ## DECRYPT: PASTE ENCRYPTED ASCII
 elif [[ $menu_choice = $menu_dec_text ]]; then
 
-  ## We have to add some things to the default decrypt string
+  ## Decrypt command for openssl needs -a (ASCII)
   decrypt="$decrypt -a"
 
   ## Ask for text message to be decrypted
@@ -279,11 +281,11 @@ elif [[ $menu_choice = $menu_dec_text ]]; then
   done
 
   ## Ask for decryption passphrase
-  zenity --entry --title="$zero [$mode]" --text="Enter passphrase" --ok-label="Decrypt" >$wd/pass || MAIN
+  zenity --entry --title="$zero [$mode]" --text="Enter passphrase" --hide-text --ok-label="Decrypt" >$wd/pass || MAIN
 
   ## Keep prompting until user enters a passphrase (zenity --entry inserts a newline even if no input so we can't use "test -s" like we can with --text-info)
   until [[ $(wc -c <$wd/pass) -gt 1 ]]; do
-    zenity --entry --title="$zero [$mode]" --text="You must enter a passphrase" --ok-label="Decrypt" >$wd/pass || MAIN
+    zenity --entry --title="$zero [$mode]" --text="You must enter a passphrase" --hide-text --ok-label="Decrypt" >$wd/pass || MAIN
   done
 
   ## Start a progress bar dialog for those really big jobs or slow machines (this gives the user feedback and a chance to cancel)
@@ -302,7 +304,7 @@ elif [[ $menu_choice = $menu_dec_text ]]; then
   echo 100 >&${COPROC[1]} ## Set our progress dialog to 100% so it closes
 
   ## Display decrypted data back to user, loop back to main menu if they don't hit quit
-  zenity --text-info --title="$zero [$mode]: Your decrypted text" --width=800 --height=600 --no-wrap --cancel-label="Quit" --ok-label="Menu" <$wd/output || exit
+  zenity --text-info --title="$zero [$mode]: Your decrypted text" --width=800 --height=600 --no-wrap --cancel-label="Show in txt editor" --ok-label="Menu" <$wd/output || { $viewer $wd/output; sleep 6; }
   MAIN
 
 
@@ -334,7 +336,7 @@ elif [[ $menu_choice = $menu_dec_file ]]; then
     decrypted_file=$(zenity --file-selection --save --confirm-overwrite --filename="$decrypted_file_suggestion" --title="$zero [$mode]: Choose decrypted file name of '${file_to_decrypt##*/}'") || MAIN
   done
 
-  ## Set ascii option for openssl, if needed
+  ## Set ASCII option for openssl, if needed
   if [[ $mode = OpenSSL-AES ]]; then
     file_type=$(file -b -e soft "$file_to_decrypt") ## Get filetype
     [[ ${file_type%% *} = ASCII ]] && decrypt="$decrypt -a"
@@ -345,11 +347,11 @@ elif [[ $menu_choice = $menu_dec_file ]]; then
   ln -sf "$decrypted_file" $wd/output
   
   ## Ask for decryption passphrase
-  zenity --entry --title="$zero [$mode]" --text="Enter passphrase" --ok-label="Decrypt" >$wd/pass || MAIN
+  zenity --entry --title="$zero [$mode]" --text="Enter passphrase" --hide-text --ok-label="Decrypt" >$wd/pass || MAIN
 
   ## Keep prompting until user enters a passphrase (zenity --entry inserts a newline even if no input so we can't use "test -s" like we can with --text-info)
   until [[ $(wc -c <$wd/pass) -gt 1 ]]; do
-    zenity --entry --title="$zero [$mode]" --text="You must enter a passphrase" --ok-label="Decrypt" >$wd/pass || MAIN
+    zenity --entry --title="$zero [$mode]" --text="You must enter a passphrase" --hide-text --ok-label="Decrypt" >$wd/pass || MAIN
   done
 
   ## Start a progress bar dialog for those really big jobs or slow machines (this gives the user feedback and a chance to cancel)
@@ -404,7 +406,6 @@ fi
 ##------------------------------------------------------------------------------
 ## UPDATE FUNCTION                                                             |
 ##                                                                             |
-##                                                                             |
 UPDATE() {                                                                  #---
   ## Set some variables
   red="<span foreground='red' weight='bold'>"; blue="<span foreground='blue'>"; orange="<span foreground='orange'>"; reset="</span>"
@@ -446,16 +447,11 @@ UPDATE() {                                                                  #---
 
   ## Else, if they're different, let's get started...
   else
-    zenity --question --title="$zero [UPDATE]" --text="The version you are running reports as:\n\t${blue}<tt>$version</tt>${reset}\nThe version on github appears to be different and reports as:\n\t${orange}<tt>$latest_version</tt>${reset}" --cancel-label="Show differences" --ok-label="Next" ||
-    {
-      ## Create a diff file
-      diff -u $0 $latest_version_file > $diff_file
-      ## Display differences
-      for viewer in gvim gedit kedit; do
-        command -v $viewer >/dev/null && { $viewer $diff_file; break; }
-      done
+    if ! zenity --question --title="$zero [UPDATE]" --text="The version you are running reports as:\n\t${blue}<tt>$version</tt>${reset}\nThe version on github appears to be different and reports as:\n\t${orange}<tt>$latest_version</tt>${reset}" --cancel-label="Show differences" --ok-label="Next"; then
+      diff -u $0 $latest_version_file >$diff_file ## Create a diff file
+      $viewer $diff_file ## Display differences
       sleep 5
-    }
+    fi
 
     ## Confirm update
     zenity --question --title="$zero [UPDATE]" --text="Replace <tt>$0</tt> with the latest version?" --cancel-label="Back to Menu" --ok-label="UPDATE" || MAIN
@@ -464,22 +460,25 @@ UPDATE() {                                                                  #---
     if [[ -w $0 ]]; then
       { cp -v $0 $dotdir/$zero.bak; cp -v $latest_version_file $0; chmod -v +x $0; } >$wd/errlog 2>&1
 
-    ## Otherwise we're not running as root, and the script must not be in our $HOME, so we need to check for GUI su programs
+    ## Otherwise we have to use a GUI su/sudo program
     else
-      for Gsu in beesu kdesu gksu ktsuss LAST; do
-        ## If we find one of these, break out of the loop-check 
+      ## Search and pick
+      for Gsu in beesu kdesu gksu ktsuss NO_tenemos_Gsu; do
         command -v $Gsu >/dev/null && break
-        ## Otherwise, if we make it to the LAST one, throw an error
-        [[ $Gsu = LAST ]] && { zenity --error --title="$zero [UPDATE]" --text="${orange}Unable to authenticate as root in order to modify <tt>$0</tt>. You can re-run $zero with root privileges from a terminal (<tt>sudo $zero</tt> or <tt>su -lc a7crypt</tt>)${reset}"; MAIN; }
       done
 
+      ## If we don't have one, display error + return to menu 
+      [[ $Gsu = NO_tenemos_Gsu ]] && { zenity --error --title="$zero [UPDATE]" --text="${orange}Unable to authenticate as root in order to modify <tt>$0</tt>. You can re-run $zero with root privileges from a terminal (<tt>sudo $zero</tt> or <tt>su -lc a7crypt</tt>)${reset}"; MAIN; }
+    
       ## Finally, run our commands with whichever GUI su program we found, saving output to errlog
       $Gsu "cp -v $0 $dotdir/$zero.bak; cp -v $latest_version_file $0; chmod -v +x $0" >$wd/errlog 2>&1
     fi
 
+    rm -v $dotdir/nowarn* 2>/dev/null ##There might be updates to the warning messages?
+
     ## Pipe some messages + the errlog to a zenity window for the user
     { echo "Backing up current version and replacing it with downloaded version..."; cat $wd/errlog; echo -n 'ALL DONE!'; } |
-    zenity --text-info --title="$zero [UPDATE]" --no-wrap --cancel-label="Quit" --ok-label="Re-load $zero new version" --width=510 --height=300 && exec $0 || exit
+      zenity --text-info --title="$zero [UPDATE]" --no-wrap --cancel-label="Quit" --ok-label="Re-load $zero new version" --width=510 --height=300 && exec $0 || exit
   fi
 }
 
@@ -488,7 +487,7 @@ UPDATE() {                                                                  #---
 ## BEGINNING                                                                   |
 ##                                                                             |
 ## If user runs this script with arguments, display a message                  |
-if [ $# -ne 0 ]; then                                                       #---
+if [[ $# -ne 0 ]]; then                                                       #---
   echo -e "Provides simple symmetric encryption/decryption using GPG, GPG2, or OpenSSL\nMeant to be run interactively (w/ no arguments) from the desktop"
   exit
 
