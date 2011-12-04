@@ -1,5 +1,5 @@
 #!/bin/bash
-# a3crypt v1.0.1 last mod 2011/12/03
+# a3crypt v1.0.2 last mod 2011/12/04
 # Latest version at <http://github.com/ryran/a7crypt>
 # Copyright 2011 Ryan Sawhill <ryan@b19.org>
 #
@@ -99,7 +99,7 @@ elif [[ $mode = GPG2 ]]; then
 elif [[ $mode = OpenSSL-AES ]]; then
   encrypt="openssl aes-256-cbc -salt -a"; decrypt="openssl aes-256-cbc -d -a"
   steps_decrypt="enter passphrase, paste OpenSSL-AES-encrypted message"
-  ctrld="TWICE "
+  ctrld=" TWICE"
 fi
 
 ## Get 'er done
