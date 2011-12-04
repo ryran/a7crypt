@@ -1,5 +1,5 @@
 #!/bin/bash
-# a7crypt v1.0.0-RC4 last mod 2011/12/03
+# a7crypt v1.0.0-RC6 last mod 2011/12/04
 # Latest version at <http://github.com/ryran/b19scripts>
 # Copyright 2011 Ryan Sawhill <ryan@b19.org>
 #
@@ -17,34 +17,44 @@
 # System requirements: zenity and one of either gpg, gpg2, or openssl.
 #
 # The original goal of this project was to make symmetric text {en,de}cryption
-# more accessible and easy to use for people that spend all their time in GUIs.
-# After accomplishing that, I added the ability to pick files and potentially do
-# binary output. The focus is still on symmetric encryption--there are frontends
-# for key-based encrypting & decrypting.
+# more accessible and easy to use. While GPG rocks (for both symmetric &
+# public-key) if you're comfortable on the commandline, and there are GUI
+# encryption options for key-based, there's not much out there for people who
+# need to do the simplest kind of encryption -- with a shared passphrase. 
+#  
+# First I developed a super-simple wrapper for the commandline. (To see an
+# evolution of that, check out a3crypt at <github.com/ryran/a7crypt>, which
+# doesn't have any of the bells and whistles of a7crypt.) Once that was
+# complete, I decided it was time to the fill the hole of a GUI for symmetric
+# encryption, and began fleshing it out and adding features, quickly adding the
+#  ability to pick files (and have the script automatically choose ASCII or
+# binary output type based on the chosen file).
 #
 # It almost goes without saying, but from the beginning, a requirement of all
-# this was that security not be in any way sacrificed for the convenience. 
+# this was that security not be in any way sacrificed for the convenience.
 #
 # To that end: No processes are run with arguments of a passphrase, nor are
 # passphrases or message data stored on disk; the script creates a working dir
 # in ram that is only readable by the current user and whenever message data or
 # passphrases need to be stored, they are stored there and deleted as soon as
-# they have served their purpose. (Note: We WILL fall-back to creating a working
-# dir on disk in HOME if /dev/shm is unavailable for some crazy reason.)
+# they have served their purpose. (Note: We WILL fall-back to creating a
+# working dir on disk in users' HOME if /dev/shm is unavailable for some crazy
+# reason.)
 #
-# We of course want to ensure that all tmpfiles are cleaned up on exit. A simple
+# We of course want to ensure that all tmpfiles are cleaned up on exit, even
+# though they're hidden away in directories only available to the user. A simple
 # trap will cover exiting due to receiving a sigterm or sigint, but for sigkill,
 # we need something more. So each time the script runs it creates lockfiles with
 # its PID and the location of the temp working directory. That way, if an old
 # instance of the script ever dies without cleaning up its potentially-sensitive
 # data, we can take out the trash on the next run.
 #
-# When lockfiles & temp directories are created by this script, they're named
-# based on the script's current filename; not some static project name. This
-# means that you can feel free to rename the script. Everything else will go
-# along with the new name--you don't need to change anything in the content.
-# One caveat though: Don't put a space in the script name. :)
-#  
+# And a final note: When lockfiles & temp directories are created by this
+# script, they're named based on the script's current filename; not some static
+# project name. This means that you can feel free to rename the script.
+# Everything else will go along with the new name--you don't need to change
+# anything in the content. Caveat: Don't be stupid & put a space in the name. :)
+#
 # Feel free to hit me/the tracker up if you have any questions or suggestions!
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
@@ -83,6 +93,7 @@ for f in nautilus dolphin konqueror thunar pcmanfm firefox; do
   command -v $f >/dev/null && { filemgr=$f; break; }
 done
 
+
 ## Here we create preset environments for the different modes
 init_env_GPG2() {
   switch_to=OpenSSL
@@ -100,9 +111,6 @@ init_env_OPENSSL() {
   decrypt="openssl aes-256-cbc -d -pass file:$wd/pass -out $wd/output"
 }
 
-## Update function wooooo
-
-
 
 ## Set main menu veriables for zenity --list
 menu_head_enc="[----- ENCRYPTION -----]"
@@ -113,6 +121,7 @@ menu_dec_text="  • Paste text"
 menu_dec_file="  • Select file " ## Trailing space to make this different than $menu_enc_file
 menu_blanksep="  --------------------------"
 #             "Switch to $switch_to-mode"
+menu_ckupdate="Check online for update"
 
 
 ##------------------------------------------------------------------------------
@@ -121,7 +130,7 @@ menu_blanksep="  --------------------------"
 MAIN() {                                                                    #---
 
 ## Ensure buffers are clear
->$wd/pass; rm $wd/input $wd/output
+>$wd/pass; rm $wd/input $wd/output 2>/dev/null
 
 ## (re-)Initialize our variables, depending on which mode we're in
 if [[ $mode = GPG2 ]]; then
@@ -133,13 +142,17 @@ elif [[ $mode = OpenSSL-AES ]]; then
 fi
 
 ## INITIAL MAIN MENU CHOICES
-menu_choice=$(zenity --list --hide-header --title="$zero [$mode]" --text="What would you like to do?" --column=1 "$menu_head_enc" "$menu_enc_text" "$menu_enc_file" "$menu_head_dec" "$menu_dec_text" "$menu_dec_file" "$menu_blanksep" "Switch to $switch_to-mode" --cancel-label="Quit" --height=310) ||  exit
+menu_choice=$(zenity --list --hide-header --title="$zero [$mode]" --text="What would you like to do?" --column=1 "$menu_head_enc" "$menu_enc_text" "$menu_enc_file" "$menu_head_dec" "$menu_dec_text" "$menu_dec_file" "$menu_blanksep" "Switch to $switch_to-mode" "$menu_ckupdate" --cancel-label="Quit" --height=340) ||  exit
 
 ##-----------------------------------------------
 ## BEGIN PARSING MENU CHOICES
 ## Reload menu if user picks one of the header lines
 if [[ $menu_choice = $menu_head_enc || $menu_choice = $menu_head_dec || $menu_choice = $menu_blanksep ]]; then
   MAIN
+
+## Run our update function if they choose it
+elif [[ $menu_choice = $menu_ckupdate ]]; then
+  UPDATE
 
 ##-----------------------------------------------
 ## ENCRYPT: TYPE/PASTE TEXT
@@ -388,6 +401,87 @@ fi
 }
 
 
+##------------------------------------------------------------------------------
+## UPDATE FUNCTION                                                             |
+##                                                                             |
+##                                                                             |
+UPDATE() {                                                                  #---
+  ## Set some variables
+  red="<span foreground='red' weight='bold'>"; blue="<span foreground='blue'>"; orange="<span foreground='orange'>"; reset="</span>"
+  latest_version_file=$dotdir/latest_update
+  diff_file=$dotdir/latest_changes.patch
+  
+  ## Make sure we CAN download something
+  if command -v wget >/dev/null; then
+    dl=wget; out='-O'
+  elif command -v curl >/dev/null; then
+    dl=curl; out='-o'
+  else
+    zenity --error --title="$zero [UPDATE]" --text="${red}Need either <tt>wget</tt> or <tt>curl</tt> installed to perform the download\!${reset}"
+    MAIN
+  fi
+
+  ## Start a progress bar
+  coproc zenity --progress --pulsate --title="$zero [UPDATE]" --text="Downloading latest version of a7crypt from github..." --auto-kill --auto-close
+  echo 1 >&${COPROC[1]}
+
+  ## Download latest version of a7crypt with wget or curl
+  if ! $dl https://raw.github.com/ryran/a7crypt/master/a7crypt $out $latest_version_file; then
+    echo 100 >&${COPROC[1]}
+    zenity --error --title="$zero [UPDATE]" --text="${red}There was a problem downloading the file\! Try running $zero from a terminal for more info.${reset}"
+    MAIN
+  fi
+
+  ## Close progress bar
+  echo 100 >&${COPROC[1]}
+
+  ## Grab version strings from files
+  version=$(head -n2 $0 | grep -o "a7crypt v.*")
+  latest_version=$(head -n2 $latest_version_file | grep -o "a7crypt v.*")
+
+  ## Compare currently running a7crypt with downloaded file -- if they're the same ...
+  if diff $0 $latest_version_file >/dev/null; then
+    zenity --info --title="$zero [UPDATE]" --text="<tt>$0</tt> is the same version as what is on github, i.e.,\n\t${blue}$version${reset}"
+
+  ## Else, if they're different, let's get started...
+  else
+    zenity --question --title="$zero [UPDATE]" --text="The version you are running reports as:\n\t${blue}<tt>$version</tt>${reset}\nThe version on github appears to be different and reports as:\n\t${orange}<tt>$latest_version</tt>${reset}" --cancel-label="Show differences" --ok-label="Next question" ||
+    {
+      ## Create a diff file
+      diff -u $0 $latest_version_file > $diff_file
+      ## Display differences
+      for viewer in gvim gedit kedit; do
+        command -v $viewer >/dev/null && { $viewer $diff_file; break; }
+      done
+      sleep 5
+    }
+
+    ## Confirm update
+    zenity --question --title="$zero [UPDATE]" --text="Replace <tt>$0</tt> with the latest version?" --cancel-label="Take me back to Menu" --ok-label="UPDATE" || MAIN
+  
+    ## If script location is writable, then let's do the do and save output to errlog
+    if [[ -w $0 ]]; then
+      { cp -v $0 $dotdir/$zero.bak; cp -v $latest_version_file $0; chmod -v +x $0; } >$wd/errlog 2>&1
+
+    ## Otherwise we're not running as root, and the script must not be in our $HOME, so we need to check for GUI su programs
+    else
+      for Gsu in beesu kdesu gksu ktsuss LAST; do
+        ## If we find one of these, break out of the loop-check 
+        command -v $Gsu >/dev/null && break
+        ## Otherwise, if we make it to the LAST one, throw an error
+        [[ $Gsu = LAST ]] && { zenity --error --title="$zero [UPDATE]" --text="${orange}Unable to authenticate as root in order to modify <tt>$0</tt>. You can re-run $zero with root privileges from a terminal (<tt>sudo $zero</tt> or <tt>su -lc a7crypt</tt>)${reset}"; MAIN; }
+      done
+
+      ## Finally, run our commands with whichever GUI su program we found, saving output to errlog
+      $Gsu "cp -v $0 $dotdir/$zero.bak; cp -v $latest_version_file $0; chmod -v +x $0" >$wd/errlog 2>&1
+    fi
+
+    ## Pipe some messages + the errlog to a zenity window for the user
+    { echo "Backing up current version and replacing it with downloaded version..."; cat $wd/errlog; echo -n 'ALL DONE!'; } |
+    zenity --text-info --title="$zero [UPDATE]" --no-wrap --cancel-label="Quit" --ok-label="Re-load $zero new version" --width=510 --height=300 && exec $0 || exit
+  fi
+}
+
 
 ##------------------------------------------------------------------------------
 ## BEGINNING                                                                   |
@@ -400,7 +494,7 @@ if [ $# -ne 0 ]; then                                                       #---
 ## Ensure we have zenity
 elif ! command -v zenity >/dev/null; then
   echo -e "This program relies on Zenity (which you don't have) for user-interaction\nYou can easily install it from your software-management app"
-  exit 1
+  exit 255
 
 ## Prefer gpg2
 elif command -v gpg2 >/dev/null; then
@@ -417,12 +511,12 @@ elif command -v openssl >/dev/null; then
 ## In the off-chance that none of those three are on the system, warn the user that we're on to them
 else
   zenity --error --title="You pulling my leg?" --text='Neither GPG, GPG2, nor OpenSSL were found in your $PATH..? Right. If you say so. Use your software-management application to install one of them.' --width=400
-  exit 1
+  exit 255
 fi
 
 ## First-run information
 if [[ ! -f $dotdir/nowarn.1strun ]]; then
-  zenity --info --title="$zero: First-run message" --text="This app is designed to be a frontend for utilities that provide symmetric (i.e., one passphrase used for both) encryption and decryption of files or blocks of text. It doesn't set any limits on the size of the input, so be warned: if e.g., you paste in a 150 MB text file for encryption, $zero will do it, but you'll lose upwards of 150 megs of RAM temporarily as it stores input in /dev/shm to speed operations. So you'd be better off using the file-selection mode for giant text files, as the file will be fed directly into the encryption program. Enjoy\!\n\n<b>[Press Enter or Esc if you can't see OK button.]</b>"
+  zenity --info --title="$zero: First-run message" --text="This app is designed to be a frontend for utilities that provide symmetric (i.e., one passphrase used for both) encryption and decryption of files or blocks of text. It doesn't set any limits on the size of the input, so be warned: if e.g., you paste in a 150 MB text file for encryption, $zero will do it, but you'll lose upwards of 150 megs of RAM temporarily as it stores input in /dev/shm to speed operations. So you'd be better off using the file-selection mode for giant text files, as the file will be fed directly into the encryption program.\n\nAlso, a random tip: When in the main menu, you can double-click to make your choice; you don't have to use the OK button. Enjoy\!\n\n<b>[Press Enter or Esc if you can't see OK button.]</b>"
   touch $dotdir/nowarn.1strun
 fi
 
