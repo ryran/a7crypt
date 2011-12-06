@@ -1,5 +1,5 @@
 #!/bin/bash
-# a7crypt v1.0.0-RC8 last mod 2011/12/04
+# a7crypt v1.0.0-RC9 last mod 2011/12/04
 # Latest version at <http://github.com/ryran/a7crypt>
 # Copyright 2011 Ryan Sawhill <ryan@b19.org>
 #
@@ -12,7 +12,6 @@
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
 #    General Public License <gnu.org/licenses/gpl.html> for more details.
-#-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
 # System requirements: zenity and one of either gpg, gpg2, or openssl.
 #
@@ -57,25 +56,67 @@
 #
 # Feel free to hit me/the tracker up if you have any questions or suggestions!
 #-------------------------------------------------------------------------------
-#-------------------------------------------------------------------------------
-
-## Let's set an uber-restrictive umask, because we can
-umask 077
 
 ## If the filename of our script is /usr/local/bin/a7crypt, then this variable would end up being "a7crypt", which we will use throughout
-zero=${0##*/}
+zero=${0##*/} ; [[ -z ${zero##* *} ]] && zero=a7crypt
 
-## Setup settings dotdir in ~ if not already there
-dotdir=$HOME/.$zero ; [[ -d $dotdir ]] || mkdir $dotdir
+
+#===============================================================================
+#-------------------------------------------------- 1) BEGIN SANITY CHECKS ---->
+
+## Print help message if no X or if run with any arguments
+if [[ -z $DISPLAY || $# -ne 0 ]]; then
+  echo -e "$zero provides symmetric encryption/decryption using GPG, GPG2, or OpenSSL\nIt is meant to be run with no arguments from a GUI desktop"
+  exit
+
+## Ensure we have zenity
+elif ! command -v zenity >/dev/null; then
+  tty --silent || notify-send --urgency=critical "$zero Critical Error" "You tried to execute $zero but it relies on Zenity (a small helper-application you don't have installed) to produce GUI menus and dialog boxes. You can install 'zenity' using your add/remove software management application."
+  echo -e "This program relies on Zenity (a small helper-application you don't have\ninstalled) to produce GUI menus and dialog boxes. You can install 'zenity' using\nyour add/remove software management application.\nCtrl-c to quit."
+  sleep 20
+  exit 255
+
+## Need writable home
+elif [[ ! -w $HOME ]]; then
+  zenity --error --title="$zero: CRITICAL ERROR" --text="You are running $zero as $USER and your home directory ($HOME) is not writable. Cannot continue."
+  exit 250
+  
+## Do we have gpg2?
+elif command -v gpg2 >/dev/null; then
+  mode=GPG2
+
+## Next up, check for gpg
+elif command -v gpg >/dev/null; then
+  mode=GPG
+
+## If no gpg funness, use openssl
+elif command -v openssl >/dev/null; then
+  mode=OpenSSL-AES
+
+## On the off-chance that none of those three are on the system...
+else
+  zenity --error --title="You pulling my leg?" --text='Neither GPG, GPG2, nor OpenSSL were found in your $PATH..? Right. If you say so.'
+  exit 250
+fi
+
+
+#===============================================================================
+#------------------------------------------------ 2) SETUP OUR ENVIRONMENT ---->
+
+## Uber-restrictive umask, because we can
+umask 077
+
+## Create settings dotdir in ~ if not already there
+dotdir=$HOME/.$zero ; [[ ! -d $dotdir ]] && mkdir $dotdir
 
 ## Setup a private working directory in ram or in ~
-if [[ -w /dev/shm ]]; then
+if [[ -w /dev/shm/ ]]; then
   wd=$(mktemp -d /dev/shm/.$zero.$UID.XXX)
 else
   wd=$(mktemp -d $dotdir/wd.XXX)
 fi
 
-## If find any existing lockfiles in home that aren't associated with a running process, then rm them and their stale working dirs
+## If there are existing lockfiles not associated with a running process, rm them and their stale working dirs
 for lockfile in $dotdir/lock-*; do
   [[ $(</proc/${lockfile##*-}/cmdline) != /bin/bash$0 ]] && rm -rv $(readlink $lockfile) $lockfile
 done 2>/dev/null
@@ -86,26 +127,25 @@ lockfile=$dotdir/lock-$$ ; ln -s $wd $lockfile
 ## Set up trap to clean-up working dir & kill any child processes (zenity) on exit
 trap "{ pkill -P $$; rm -r $wd $lockfile 2>/dev/null; }" EXIT
 
-## Set filemgr for giving the option to have a look at encrypted files
+## Set filemanager for optionally looking at files
 for filemgr in nautilus dolphin konqueror thunar pcmanfm firefox; do
   command -v $filemgr >/dev/null && break
 done
 
-## Set viewer for looking at stuff
+## Set viewer for optionally looking at encrypted/decrypted text
 for viewer in gedit gvim kedit; do
   command -v $viewer >/dev/null && break
 done
 
-## Here we create preset environments for the different modes
-init_env_GPG2() {
-  switch_to=OpenSSL
-  encrypt="gpg2 --batch --no-tty --yes -c --force-mdc --passphrase-file $wd/pass --output $wd/output"
-  decrypt="gpg2 --batch --no-tty --yes -d --passphrase-file $wd/pass --output $wd/output"
-}
+
+#===============================================================================
+#-------------------------------------------------- 3) ENUMERATE FUNCTIONS ---->
+
+## Functions to initialize the variables for each mode (see beginning of MAIN function for $gpg enumeration)
 init_env_GPG() {
   switch_to=OpenSSL
-  encrypt="gpg --no-use-agent --batch --no-tty --yes -c --force-mdc --passphrase-file $wd/pass --output $wd/output"
-  decrypt="gpg --no-use-agent --batch --no-tty --yes -d --passphrase-file $wd/pass --output $wd/output"
+  encrypt="$gpg --batch --no-tty --yes -c --force-mdc --passphrase-file $wd/pass --output $wd/output"
+  decrypt="$gpg --batch --no-tty --yes -d --passphrase-file $wd/pass --output $wd/output"
 }
 init_env_OPENSSL() {
   switch_to=GPG
@@ -114,50 +154,53 @@ init_env_OPENSSL() {
 }
 
 
-## Set main menu veriables for zenity --list
-menu_head_enc="[----- ENCRYPTION -----]"
-menu_enc_text="  • Type or paste text"
-menu_enc_file="  • Select file"
-menu_head_dec="[----- DECRYPTION -----]"
-menu_dec_text="  • Paste text"
-menu_dec_file="  • Select file " ## Trailing space to make this different than $menu_enc_file
-menu_blanksep="  --------------------------"
-#             "Switch to $switch_to-mode"
-menu_ckupdate="Check online for update"
+#---------------------------------------------- 3.1) FUNCTION: MAIN THREAD ---->
+# MAIN manages menu & dialogs, encryption, decryption, & loading of UPDATE func.
 
-
-##------------------------------------------------------------------------------
-## THE MAIN MENU -- the framework which everything plugs into                  |
-##                                                                             |
-MAIN() {                                                                    #---
+MAIN() {
 
 ## Ensure buffers are clear
 >$wd/pass; rm $wd/input $wd/output 2>/dev/null
 
 ## (re-)Initialize our variables, depending on which mode we're in
 if [[ $mode = GPG2 ]]; then
-  init_env_GPG2
+  gpg="gpg2"
+  init_env_GPG
 elif [[ $mode = GPG ]]; then
+  gpg="gpg --no-use-agent"
   init_env_GPG
 elif [[ $mode = OpenSSL-AES ]]; then
   init_env_OPENSSL
 fi
 
-## INITIAL MAIN MENU CHOICES
-menu_choice=$(zenity --list --hide-header --title="$zero [$mode]" --text="What would you like to do?" --column=1 "$menu_head_enc" "$menu_enc_text" "$menu_enc_file" "$menu_head_dec" "$menu_dec_text" "$menu_dec_file" "$menu_blanksep" "Switch to $switch_to-mode" "$menu_ckupdate" --cancel-label="Quit" --height=340) ||  exit
+## Set main menu content for 'zenity --list'
+menu_head_enc="[----- ENCRYPTION -----]"
+menu_enc_text="  • Type or paste text"
+menu_enc_file="  • Select file"
+menu_head_dec="[----- DECRYPTION -----]"
+menu_dec_text="  • Paste text"
+menu_dec_file="  • Select file " ## Trailing space to make different than $menu_enc_file
+menu_blanksep="  --------------------------"
+menu_switchto="Switch to $switch_to-mode"
+menu_ckupdate="Check online for update"
 
-##-----------------------------------------------
+## Display main menu and grab the user's choice
+menu_choice=$(zenity --list --hide-header --title="$zero [$mode]" --text="What would you like to do?" --column=1 "$menu_head_enc" "$menu_enc_text" "$menu_enc_file" "$menu_head_dec" "$menu_dec_text" "$menu_dec_file" "$menu_blanksep" "$menu_switchto" "$menu_ckupdate" --cancel-label="Quit" --height=340) || exit
+
+
+#------------------------------------------------
 ## BEGIN PARSING MENU CHOICES
+
 ## Reload menu if user picks one of the header lines
 if [[ $menu_choice = $menu_head_enc || $menu_choice = $menu_head_dec || $menu_choice = $menu_blanksep ]]; then
   MAIN
 
-## Run our update function if they choose it
+## Run our UPDATE function if they choose updates
 elif [[ $menu_choice = $menu_ckupdate ]]; then
   UPDATE
 
-##-----------------------------------------------
-## ENCRYPT: TYPE/PASTE TEXT
+#------------------------------------------------
+## 3.1.1) ENCRYPT: TYPE/PASTE TEXT
 elif [[ $menu_choice = $menu_enc_text ]]; then
 
   ## Warn user about openssl obscurity
@@ -166,7 +209,7 @@ elif [[ $menu_choice = $menu_enc_text ]]; then
     touch $dotdir/nowarn.openssl-txt
   fi
 
-  ## We have to add some things to the default encrypt string
+  ## Encrypt command for openssl needs -a (ASCII) and this doesn't hurt gpg
   encrypt="$encrypt -a"
 
   ## Ask for text message to be encrypted
@@ -178,6 +221,7 @@ elif [[ $menu_choice = $menu_enc_text ]]; then
   done
 
   ## Ask for encryption passphrase
+  ## TODO: I designed this to be fast and simple; I don't like the idea of having to enter a passphrase twice, but I also don't like the idea of accidentally mistyping a long passphrase. That's why I decided not to use --hide-text to hide the passphrase when doing encryption. Need to get feedback from users on this choice though.
   zenity --entry --title="$zero [$mode]" --text="Enter passphrase very carefully" --ok-label="Encrypt" >$wd/pass || MAIN
 
   ## Keep prompting until user enters a passphrase (zenity --entry inserts a newline even if no input so we can't use "test -s" like we can with --text-info)
@@ -201,12 +245,12 @@ elif [[ $menu_choice = $menu_enc_text ]]; then
   echo 100 >&${COPROC[1]} ## Set our progress dialog to 100% so it closes
 
   ## Display encrypted data back to user, loop back to main menu if they don't hit quit
-  zenity --text-info --title="$zero [$mode]: Your encrypted text" --width=650 --height=600 --no-wrap --cancel-label="Show in txt editor" --ok-label="Menu" <$wd/output || { $viewer $wd/output; sleep 6; }
+  zenity --text-info --title="$zero [$mode]: Your encrypted text" --width=650 --height=400 --no-wrap --cancel-label="Show in txt editor" --ok-label="Menu" <$wd/output || { $viewer $wd/output; sleep 3; }
   MAIN
 
 
-##-----------------------------------------------
-## ENCRYPT: SELECT FILE
+#------------------------------------------------
+## 3.1.2) ENCRYPT: SELECT FILE
 elif [[ $menu_choice = $menu_enc_file ]]; then
 
   ## Warn user about openssl obscurity
@@ -216,23 +260,23 @@ elif [[ $menu_choice = $menu_enc_file ]]; then
   fi
 
   ## Get file to encrypt via file-selection dialog
-  file_to_encrypt=$(zenity --file-selection --title="$zero [$mode]: Select file to be encrypted")|| MAIN
+  file_to_encrypt=$(zenity --file-selection --title="$zero [$mode]: Select file to be encrypted") || MAIN
 
   ## Keep prompting until user chooses a proper file
   while [[ ! -s $file_to_encrypt || ! -r $file_to_encrypt ]]; do
-    file_to_encrypt=$(zenity --file-selection --title="$zero [$mode]: Could not read file; select another")|| MAIN
+    file_to_encrypt=$(zenity --file-selection --title="$zero [$mode]: Could not read file; select another") || MAIN
   done
   
   ## Detect whether input is binary or text and set output mode and output filename accordingly
   file_type=$(file -b -e soft "$file_to_encrypt") ## Get filetype
   if [[ ${file_type%% *} = ASCII ]]; then
-    encrypt="$encrypt -a"; ascii_yesno="ASCII-armored output"
-    [[ $mode = OpenSSL-AES ]] && encrypted_file=$file_to_encrypt.aes256 || encrypted_file=$file_to_encrypt.asc
+    encrypt="$encrypt -a"
+    ascii_yesno="ASCII-armored output" ; encrypted_file=$file_to_encrypt.asc
   else
-    ascii_yesno="binary output"
-    [[ $mode = OpenSSL-AES ]] && encrypted_file=$file_to_encrypt.aes256 || encrypted_file=$file_to_encrypt.gpg
+    ascii_yesno="binary output" ; encrypted_file=$file_to_encrypt.gpg
   fi
-
+  [[ $mode = OpenSSL-AES ]] && encrypted_file=$file_to_encrypt.aes256
+    
   ## Now that we know what our input and output files are going to be, setup symlinks
   ln -sf "$file_to_encrypt" $wd/input
   ln -sf "$encrypted_file" $wd/output
@@ -261,23 +305,23 @@ elif [[ $menu_choice = $menu_enc_file ]]; then
   echo 100 >&${COPROC[1]} ## Set our progress dialog to 100% so it closes
 
   ## Report final encrypted filename back to user; give them a chance to see the file in their filemanager (hopefully)
-  echo -en "Successfully encrypted [ $file_to_encrypt ] with $ascii_yesno. Saved encrypted copy to:\n$encrypted_file" | zenity --text-info --title="$zero [$mode]: Your encrypted file is ready" --width=500 --height=160 --cancel-label="Show me file" --ok-label="Menu" || $filemgr "${encrypted_file%/*}"
+  echo -en "Successfully encrypted [ $file_to_encrypt ] with $ascii_yesno. Saved encrypted copy to:\n$encrypted_file" | zenity --text-info --title="$zero [$mode]: Your encrypted file is ready" --width=500 --height=160 --cancel-label="Show file" --ok-label="Menu" || $filemgr "${encrypted_file%/*}"
   MAIN
 
 
-##-----------------------------------------------
-## DECRYPT: PASTE ENCRYPTED ASCII
+#------------------------------------------------
+## 3.1.3) DECRYPT: PASTE ENCRYPTED ASCII
 elif [[ $menu_choice = $menu_dec_text ]]; then
 
-  ## Decrypt command for openssl needs -a (ASCII)
+  ## Decrypt command for openssl needs -a (ASCII) and this doesn't hurt gpg
   decrypt="$decrypt -a"
 
   ## Ask for text message to be decrypted
-  zenity --text-info --editable --title="$zero [$mode]: Paste $mode-encrypted message" --width=650 --height=600 --no-wrap >$wd/input || MAIN
+  zenity --text-info --editable --title="$zero [$mode]: Paste $mode-encrypted message" --width=650 --height=400 --no-wrap >$wd/input || MAIN
 
   ## Keep prompting until user actually enters some data
   until [[ -s $wd/input ]]; do
-    zenity --text-info --editable --title="$zero [$mode]: You must enter an encrypted message" --width=800 --height=600 --no-wrap >$wd/input || MAIN
+    zenity --text-info --editable --title="$zero [$mode]: You must enter an encrypted message" --width=650 --height=400 --no-wrap >$wd/input || MAIN
   done
 
   ## Ask for decryption passphrase
@@ -304,27 +348,27 @@ elif [[ $menu_choice = $menu_dec_text ]]; then
   echo 100 >&${COPROC[1]} ## Set our progress dialog to 100% so it closes
 
   ## Display decrypted data back to user, loop back to main menu if they don't hit quit
-  zenity --text-info --title="$zero [$mode]: Your decrypted text" --width=800 --height=600 --no-wrap --cancel-label="Show in txt editor" --ok-label="Menu" <$wd/output || { $viewer $wd/output; sleep 6; }
+  zenity --text-info --title="$zero [$mode]: Your decrypted text" --width=650 --height=600 --no-wrap --cancel-label="Show in txt editor" --ok-label="Menu" <$wd/output || { $viewer $wd/output; sleep 3; }
   MAIN
 
 
-##-----------------------------------------------
-## DECRYPT: SELECT FILE
+#------------------------------------------------
+## 3.1.4) DECRYPT: SELECT FILE
 elif [[ $menu_choice = $menu_dec_file ]]; then
 
   ## Get file to decrypt via file-selection dialog
-  file_to_decrypt=$(zenity --file-selection --title="$zero [$mode]: Select file to be decrypted")|| MAIN
+  file_to_decrypt=$(zenity --file-selection --title="$zero [$mode]: Select file to be decrypted") || MAIN
 
   ## Keep prompting until user chooses a proper file
   while [[ ! -s $file_to_decrypt || ! -r $file_to_decrypt ]]; do
-    file_to_decrypt=$(zenity --file-selection --title="$zero [$mode]: Could not read file; select another")|| MAIN
+    file_to_decrypt=$(zenity --file-selection --title="$zero [$mode]: Could not read file; select another") || MAIN
   done
 
   ## Try to figure out what to suggest for the save dialog box
   ## We start with a default, but if the file ends in these extensions, set the suggestion to the filename minus that extension
   decrypted_file_suggestion=${file_to_decrypt}-decrypted
   for ext in .asc .gpg .pgp .aes256; do
-    [[ ${file_to_decrypt%$ext} = $file_to_decrypt ]] || { decrypted_file_suggestion=${file_to_decrypt%$ext}; break; }
+    [[ $ext = ${file_to_decrypt/%*$ext/$ext} ]] && { decrypted_file_suggestion=${file_to_decrypt%$ext}; break; }
   done
 
   ## Prompt user for where to save decrypted file
@@ -332,13 +376,13 @@ elif [[ $menu_choice = $menu_dec_file ]]; then
 
   ## Prevent user from nuking their file by reading and writing to it at the same time
   while [[ $file_to_decrypt = $decrypted_file ]]; do
-    zenity --error --title="I just saved your life" --text="Source and destination files cannot be the same!" 
+    zenity --error --title="I just saved your life" --text="Source and destination files cannot be the same\!" 
     decrypted_file=$(zenity --file-selection --save --confirm-overwrite --filename="$decrypted_file_suggestion" --title="$zero [$mode]: Choose decrypted file name of '${file_to_decrypt##*/}'") || MAIN
   done
 
   ## Set ASCII option for openssl, if needed
   if [[ $mode = OpenSSL-AES ]]; then
-    file_type=$(file -b -e soft "$file_to_decrypt") ## Get filetype
+    file_type=$(file -b -e soft "$file_to_decrypt")
     [[ ${file_type%% *} = ASCII ]] && decrypt="$decrypt -a"
   fi
 
@@ -370,12 +414,12 @@ elif [[ $menu_choice = $menu_dec_file ]]; then
   echo 100 >&${COPROC[1]} ## Set our progress dialog to 100% so it closes
 
   ## Report final decrypted filename back to user; give them a chance to see the file in their filemanager (hopefully)
-  echo -en "Successfully decrypted [ $file_to_decrypt ] to new file:\n$decrypted_file" | zenity --text-info --title="$zero [$mode]: Your decrypted file is ready" --width=500 --height=160 --cancel-label="Show me file" --ok-label="Menu" || $filemgr "${decrypted_file%/*}"
+  echo -en "Successfully decrypted [ $file_to_decrypt ] to new file:\n$decrypted_file" | zenity --text-info --title="$zero [$mode]: Your decrypted file is ready" --width=500 --height=160 --cancel-label="Show file" --ok-label="Menu" || $filemgr "${decrypted_file%/*}"
   MAIN
 
 
-##-----------------------------------------------
-## SWITCH MODES
+#------------------------------------------------
+## 3.1.5) SWITCH MODES
 else
 
   ## If switching to openssl mode, ensure we have openssl (haha) before setting our mode
@@ -403,22 +447,24 @@ fi
 }
 
 
-##------------------------------------------------------------------------------
-## UPDATE FUNCTION                                                             |
-##                                                                             |
-UPDATE() {                                                                  #---
+
+#-------------------------------------------------- 3.2) FUNCTION: UPDATES ---->
+# UPDATE is called by MAIN in order to check for & optionally download updates
+
+UPDATE() {
   ## Set some variables
-  red="<span foreground='red' weight='bold'>"; blue="<span foreground='blue'>"; orange="<span foreground='orange'>"; reset="</span>"
-  latest_version_file=$dotdir/latest_update
+  red="<span foreground='red' weight='bold'>"; blue="<span foreground='blue'>"
+  orange="<span foreground='orange'>"; end_color="</span>"
+  file_dL=$dotdir/latest_update
   diff_file=$dotdir/latest_changes.patch
   
   ## Make sure we CAN download something
   if command -v wget >/dev/null; then
-    dl=wget; out='-O'
+    downloader=wget; out='-O'
   elif command -v curl >/dev/null; then
-    dl=curl; out='-o'
+    downloader=curl; out='-o'
   else
-    zenity --error --title="$zero [UPDATE]" --text="${red}Need either <tt>wget</tt> or <tt>curl</tt> installed to perform the download\!${reset}"
+    zenity --error --title="$zero [UPDATE]" --text="${red}Need either <tt>wget</tt> or <tt>curl</tt> installed to perform the download\!${end_color}"
     MAIN
   fi
 
@@ -427,9 +473,9 @@ UPDATE() {                                                                  #---
   echo 1 >&${COPROC[1]}
 
   ## Download latest version of a7crypt with wget or curl
-  if ! $dl https://raw.github.com/ryran/a7crypt/master/a7crypt $out $latest_version_file; then
+  if ! $downloader https://raw.github.com/ryran/a7crypt/master/a7crypt $out $file_dL; then
     echo 100 >&${COPROC[1]}
-    zenity --error --title="$zero [UPDATE]" --text="${red}There was a problem downloading the file\! Try running $zero from a terminal for more info.${reset}"
+    zenity --error --title="$zero [UPDATE]" --text="${red}There was a problem downloading the file\! Try running $zero from a terminal for more info.${end_color}"
     MAIN
   fi
 
@@ -438,19 +484,18 @@ UPDATE() {                                                                  #---
 
   ## Grab version strings from files
   version=$(head -n2 $0 | grep -o "a7crypt v.*")
-  latest_version=$(head -n2 $latest_version_file | grep -o "a7crypt v.*")
+  file_dL_version=$(head -n2 $file_dL | grep -o "a7crypt v.*")
 
   ## Compare currently running a7crypt with downloaded file -- if they're the same ...
-  if diff $0 $latest_version_file >/dev/null; then
-    zenity --info --title="$zero [UPDATE]" --text="<tt>$0</tt> is the same version as what is on github, i.e.,\n\t${blue}$version${reset}"
+  if diff -u $0 $file_dL >$diff_file; then
+    zenity --info --title="$zero [UPDATE]" --text="<tt>$0</tt> is the same version as what is on github, i.e.,\n\t${blue}$version${end_color}"
     MAIN
 
-  ## Else, if they're different, let's get started...
+  ## Else, if they're different, give user a chance to look at differences
   else
-    if ! zenity --question --title="$zero [UPDATE]" --text="The version you are running reports as:\n\t${blue}<tt>$version</tt>${reset}\nThe version on github appears to be different and reports as:\n\t${orange}<tt>$latest_version</tt>${reset}" --cancel-label="Show differences" --ok-label="Next"; then
-      diff -u $0 $latest_version_file >$diff_file ## Create a diff file
-      $viewer $diff_file ## Display differences
-      sleep 5
+    if ! zenity --question --title="$zero [UPDATE]" --text="The version you are running reports as:\n\t${blue}<tt>$version</tt>${end_color}\nThe version on github appears to be different and reports as:\n\t${orange}<tt>$file_dL_version</tt>${end_color}" --cancel-label="Show differences" --ok-label="Next"; then
+      $viewer $diff_file
+      sleep 4
     fi
 
     ## Confirm update
@@ -458,61 +503,34 @@ UPDATE() {                                                                  #---
   
     ## If script location is writable, then let's do the do and save output to errlog
     if [[ -w $0 ]]; then
-      { cp -v $0 $dotdir/$zero.bak; cp -v $latest_version_file $0; chmod -v +x $0; } >$wd/errlog 2>&1
+      { cp -v $0 $dotdir/$zero.bak; cp -v $file_dL $0; chmod -v +x $0; } >$wd/errlog 2>&1
 
-    ## Otherwise we have to use a GUI su/sudo program
+    ## Otherwise we have to use a GUI su/sudo program, so first we search & pick one
     else
-      ## Search and pick
       for Gsu in beesu kdesu gksu ktsuss NO_tenemos_Gsu; do
         command -v $Gsu >/dev/null && break
       done
 
       ## If we don't have one, display error + return to menu 
-      [[ $Gsu = NO_tenemos_Gsu ]] && { zenity --error --title="$zero [UPDATE]" --text="${orange}Unable to authenticate as root in order to modify <tt>$0</tt>. You can re-run $zero with root privileges from a terminal (<tt>sudo $zero</tt> or <tt>su -lc a7crypt</tt>)${reset}"; MAIN; }
+      [[ $Gsu = NO_tenemos_Gsu ]] && { zenity --error --title="$zero [UPDATE]" --text="${orange}Unable to authenticate as root in order to modify <tt>$0</tt>. You can re-run $zero with root privileges from a terminal (<tt>sudo $zero</tt> or <tt>su -lc a7crypt</tt>)${end_color}"; MAIN; }
     
       ## Finally, run our commands with whichever GUI su program we found, saving output to errlog
-      $Gsu "cp -v $0 $dotdir/$zero.bak; cp -v $latest_version_file $0; chmod -v +x $0" >$wd/errlog 2>&1
+      $Gsu "cp -v $0 $dotdir/$zero.bak; cp -v $file_dL $0; chmod -v +x $0" >$wd/errlog 2>&1 ## TODO: Need to test this with different programs; perhaps output should be inside quotes
     fi
 
-    rm -v $dotdir/nowarn* 2>/dev/null ##There might be updates to the warning messages?
+    rm -v $dotdir/nowarn* 2>/dev/null ## TODO: Decide if really want this. (There might be important updates to warning messages?)
 
     ## Pipe some messages + the errlog to a zenity window for the user
     { echo "Backing up current version and replacing it with downloaded version..."; cat $wd/errlog; echo -n 'ALL DONE!'; } |
       zenity --text-info --title="$zero [UPDATE]" --no-wrap --cancel-label="Quit" --ok-label="Re-load $zero new version" --width=510 --height=300 && exec $0 || exit
   fi
+  ## Script should never get here, but...
+  MAIN
 }
 
 
-##------------------------------------------------------------------------------
-## BEGINNING                                                                   |
-##                                                                             |
-## If user runs this script with arguments, display a message                  |
-if [[ $# -ne 0 ]]; then                                                       #---
-  echo -e "Provides simple symmetric encryption/decryption using GPG, GPG2, or OpenSSL\nMeant to be run interactively (w/ no arguments) from the desktop"
-  exit
-
-## Ensure we have zenity
-elif ! command -v zenity >/dev/null; then
-  echo -e "This program relies on Zenity (which you don't have) for user-interaction\nYou can easily install it from your software-management app"
-  exit 255
-
-## Prefer gpg2
-elif command -v gpg2 >/dev/null; then
-  mode=GPG2
-
-## Next up, check for gpg
-elif command -v gpg >/dev/null; then
-  mode=GPG
-
-## Finally, if no gpg funness, use openssl
-elif command -v openssl >/dev/null; then
-  mode=OpenSSL-AES
-
-## In the off-chance that none of those three are on the system, warn the user that we're on to them
-else
-  zenity --error --title="You pulling my leg?" --text='Neither GPG, GPG2, nor OpenSSL were found in your $PATH..? Right. If you say so. Use your software-management application to install one of them.' --width=400
-  exit 255
-fi
+#===============================================================================
+#---------------------------------------------- 4) BEGIN USER-INTERACTION! ---->
 
 ## First-run information
 if [[ ! -f $dotdir/nowarn.1strun ]]; then
@@ -520,5 +538,6 @@ if [[ ! -f $dotdir/nowarn.1strun ]]; then
   touch $dotdir/nowarn.1strun
 fi
 
-## Now that we know what mode we're running in, start main menu
+## All setup is complete & we're ready to start the main menu (function above)
 MAIN
+
