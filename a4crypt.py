@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # a4crypt v0.4 last mod 2011/12/15
-# Latest version at <http://github.com/ryran/pythonpractice>
+# Latest version at <http://github.com/ryran/a7crypt>
 # Copyright 2011 Ryan Sawhill <ryan@b19.org>
 #
 #    This program is free software: you can redistribute it and/or modify
