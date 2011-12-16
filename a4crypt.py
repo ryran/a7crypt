@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# a4crypt v0.4 last mod 2011/12/15
+# a4crypt v0.4.1 last mod 2011/12/16
 # Latest version at <http://github.com/ryran/a7crypt>
 # Copyright 2011 Ryan Sawhill <ryan@b19.org>
 #
@@ -15,6 +15,8 @@
 #------------------------------------------------------------------------------
 
 # TODO: SCRIPT docstring.
+# TODO: Implement GPG reading passphrase from fd instead of tempfile with 
+# --passphrase-fd or --command-fd
 
 # Methods that are imported when they're needed:
     #from os.path import exists
@@ -73,7 +75,9 @@ class a4crypt:
             print(self.cRED +
                   "Error! This program requires either gpg or gpg2 to work!" +
                   self.cRSET)
-            exit()
+            if __name__ == "__main__":
+                exit()
+            return
         if program == 'gpg':
             self.gpg = 'gpg'
         else:
