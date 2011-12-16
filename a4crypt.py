@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# a4crypt v0.5 last mod 2011/12/16
+# a4crypt v0.5.1 last mod 2011/12/17
 # Latest version at <http://github.com/ryran/a7crypt>
 # Copyright 2011 Ryan Sawhill <ryan@b19.org>
 #
@@ -14,16 +14,16 @@
 #    General Public License <gnu.org/licenses/gpl.html> for more details.
 #------------------------------------------------------------------------------
 
-# TODO: SCRIPT docstring.
+# TODO: SCRIPT docstring; chop all print() lines down to 79w
 # TODO: Implement GPG reading passphrase from fd instead of tempfile with 
-# --passphrase-fd or --command-fd
+# --passphrase-fd or --command-fd (will have to also make data use that method)
 
 # Methods that are imported when they're needed:
     #from os.path import exists
+    #from collections import namedtuple
+    #from getpass import getpass
     #from tempfile import TemporaryFile, NamedTemporaryFile
     #from subprocess import Popen, PIPE, STDOUT
-    #from getpass import getpass
-    #from collections import namedtuple
 
 
 class a4crypt:
