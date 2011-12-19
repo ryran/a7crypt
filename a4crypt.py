@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# a4crypt v0.5.2 last mod 2011/12/17
+# a4crypt v0.5.3 last mod 2011/12/19
 # Latest version at <http://github.com/ryran/a7crypt>
 # Copyright 2011 Ryan Sawhill <ryan@b19.org>
 #
@@ -14,12 +14,13 @@
 #    General Public License <gnu.org/licenses/gpl.html> for more details.
 #------------------------------------------------------------------------------
 
-# TODO: SCRIPT docstring; chop all print() lines down to 79w
+# TODO: SCRIPT docstring
 # TODO: Implement GPG reading passphrase from fd instead of tempfile with 
 # --passphrase-fd or --command-fd (will have to also make data use that method)
 
 # Standard Library stuff only
-from os.path import exists
+from os.path import isfile
+from os import environ, pathsep, access, X_OK
 from collections import namedtuple
 from getpass import getpass
 from tempfile import NamedTemporaryFile
@@ -65,29 +66,23 @@ class a4crypt:
         else:
             self.c = Colors('', '', '', '', '', '')
         # Time to check for gpg or gpg2 and set variables accordingly
-        # TODO: Should be checking for apps using some bin or PATH variable
-        #       instead of hardcoding '/usr/bin/' .. need to find The Right Way
-        programs=('gpg', 'gpg2')
-        for program in programs:
-            if exists('/usr/bin/'+program):
-                break
+        for d in environ['PATH'] .split(pathsep):
+            for p in ('gpg', 'gpg2'):
+                if isfile(d+'/'+p) and access(d+'/'+p, X_OK):
+                    self.gpg = p
+                    return
         else:
-            print("{0.R}Error! This program requires either gpg or gpg2 to"
-                  "work!{0.RST}" .format(self.c))
-            if __name__ == "__main__":
-                exit()
+            print("{R}Error! This program requires gpg or gpg2 to work!{RST}"
+                  .format(**self.c._asdict()))
+            if __name__ == "__main__": exit()
             return
-        if program == 'gpg':
-            self.gpg = 'gpg'
-        else:
-            self.gpg = 'gpg2'
 
 
     def main(self):
         """Load initial prompt and kick off all the other functions."""
         # Initial prompt
-        print("{0.BLD}[{0.R}e{0.BLD}]ncrypt, [{0.R}d{0.BLD}]ecrypt, or [{0.R}q"
-              "{0.BLD}]uit?" .format(self.c))
+        print("{BLD}[{R}e{BLD}]ncrypt, [{R}d{BLD}]ecrypt, or [{R}q{BLD}]uit?"
+              .format(**self.c._asdict()))
         mode = raw_input(": " + self.c.RST)
         mode = self.test_prompt(mode, 'e', 'd', 'Q', 'q')
 
@@ -98,9 +93,9 @@ class a4crypt:
         # ENCRYPT MODE
         elif mode == 'e':
             # Get our message-to-be-encrypted from the user; save to variable
-            print("{0.B}Type or paste message to be encrypted.\nEnd with line"
-                  "containing only a triple-semicolon, i.e. {0.BLD};;;{0.B}\n"
-                  ":{0.RST}" .format(self.c)),
+            print("{B}Type or paste message to be encrypted.\nEnd with line "
+                  "containing only a triple-semicolon, i.e. {BLD};;;{B}\n:{RST}"
+                  .format(**self.c._asdict())),
             self.inputdata = self.multiline_input(';;;')
             print
             # Get passphrase from the user; save to tmpfile
@@ -134,9 +129,9 @@ class a4crypt:
                           "{0.RST}\n" .format(self.c, gpg_output))
                     break
                 else:
-                    print("{0.R}Error in decryption process!\nTry again with a"
-                          "different passphrase?\n{0.RST}[y/n]:" .format(self.c)),
-                    tryagain = raw_input()
+                    print("{0.R}Error in decryption process!\nTry again with a "
+                          "different passphrase?\n{0.BLD}[y/n]:" .format(self.c)),
+                    tryagain = raw_input(self.c.RST)
                     tryagain = self.test_prompt(tryagain, 'y', 'n')
                     if tryagain == 'y':
                         pwd = self.get_passphrase(confirm=False)
@@ -151,22 +146,16 @@ class a4crypt:
 
     def test_prompt(self, userinput, *args):
         """Test user input. Keep prompting until recieve one of 'args'."""
-        while True:
-            for desired in args:
-                if userinput == desired:
-                    return userinput
-                else:
-                    continue
-            else:
-                print("{0.R}Expecting one of {1}{0.RST}" .format(self.c, args))
-                userinput = raw_input(self.c.BLD + ": " + self.c.RST)
-
+        while userinput not in args:
+            print("{0.R}Expecting one of {1}{0.BLD}" .format(self.c, args))
+            userinput = raw_input(": " + self.c.RST)
+        return userinput
 
     def multiline_input(self, EOFstr, keeplastline=False):
         """Prompt for (and return) multiple lines of raw input.
         
         Stop prompting once receive a line containing only EOFstr. Return input
-        minus that last line, unless run with keeplastline=yes.
+        minus that last line, unless run with keeplastline=True.
         """
         userinput = []
         userinput.append(raw_input())
@@ -184,19 +173,19 @@ class a4crypt:
         """
         #from getpass import getpass
         while True:
-            pwd1 = getpass(prompt=self.c.B +
-                           "Carefully enter passphrase: " + self.c.RST)
+            pwd1 = getpass(prompt="{B}Carefully enter passphrase:{RST} "
+                           .format(**self.c._asdict()))
             while len(pwd1) == 0:
-                pwd1 = getpass(prompt=self.c.R +
-                               "You must enter a passphrase: " + self.c.RST)
+                pwd1 = getpass(prompt="{R}You must enter a passphrase:{RST} "
+                               .format(**self.c._asdict()))
             if not confirm:
                 return pwd1
-            pwd2 = getpass(prompt=self.c.B +
-                           "Repeat passphrase to confirm: " + self.c.RST)
+            pwd2 = getpass(prompt="{B}Repeat passphrase to confirm:{RST} "
+                           .format(**self.c._asdict()))
             if pwd1 == pwd2:
                 return pwd1
-            print("{0.R}The passphrases you entered did not match {0.RST}"
-                  .format(self.c))
+            print("{R}The passphrases you entered did not match!{RST}"
+                  .format(**self.c._asdict()))
 
 
     def launch_gpg(self, mode, passfile):
