@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# a4crypt v0.5.3 last mod 2011/12/19
+# a4crypt v0.5.4 last mod 2011/12/21
 # Latest version at <http://github.com/ryran/a7crypt>
 # Copyright 2011 Ryan Sawhill <ryan@b19.org>
 #
@@ -65,6 +65,7 @@ class a4crypt:
                 B='\033[1;34m', G='\033[1;32m', C='\033[0;36m')
         else:
             self.c = Colors('', '', '', '', '', '')
+
         # Time to check for gpg or gpg2 and set variables accordingly
         for d in environ['PATH'] .split(pathsep):
             for p in ('gpg', 'gpg2'):
@@ -78,13 +79,13 @@ class a4crypt:
             return
 
 
+
     def main(self):
         """Load initial prompt and kick off all the other functions."""
         # Initial prompt
         print("{BLD}[{R}e{BLD}]ncrypt, [{R}d{BLD}]ecrypt, or [{R}q{BLD}]uit?"
               .format(**self.c._asdict()))
-        mode = raw_input(": " + self.c.RST)
-        mode = self.test_prompt(mode, 'e', 'd', 'Q', 'q')
+        mode = self.test_rawinput(": ", 'e', 'd', 'Q', 'q')
 
         if mode in {'q', 'Q'}:
             if __name__ == "__main__":
@@ -114,7 +115,7 @@ class a4crypt:
             print("{0.B}Paste GPG-encrypted message to be decrypted.\n:{0.RST}"
                   .format(self.c)),
             self.inputdata = self.multiline_input('-----END PGP MESSAGE-----',
-                                                  keeplastline='yes')
+                                                  keeplastline=True)
             print
             # Get passphrase from the user; save to tmpfile
             pwd = self.get_passphrase(confirm=False)
@@ -129,10 +130,9 @@ class a4crypt:
                           "{0.RST}\n" .format(self.c, gpg_output))
                     break
                 else:
-                    print("{0.R}Error in decryption process!\nTry again with a "
-                          "different passphrase?\n{0.BLD}[y/n]:" .format(self.c)),
-                    tryagain = raw_input(self.c.RST)
-                    tryagain = self.test_prompt(tryagain, 'y', 'n')
+                    print("{0.R}Error in decryption process! Try again with a "
+                          "different passphrase?" .format(self.c))
+                    tryagain = self.test_rawinput("[y/n]: ", 'y', 'n')
                     if tryagain == 'y':
                         pwd = self.get_passphrase(confirm=False)
                         passphrasefile.seek(0)
@@ -144,11 +144,13 @@ class a4crypt:
 
 
 
-    def test_prompt(self, userinput, *args):
+    def test_rawinput(self, prompt, *args):
         """Test user input. Keep prompting until recieve one of 'args'."""
+        prompt = self.c.BLD + prompt + self.c.RST
+        userinput = raw_input(prompt)
         while userinput not in args:
-            print("{0.R}Expecting one of {1}{0.BLD}" .format(self.c, args))
-            userinput = raw_input(": " + self.c.RST)
+            userinput = raw_input("{0.R}Expecting one of {1}\n{2}"
+                                  .format(self.c, args, prompt))
         return userinput
 
     def multiline_input(self, EOFstr, keeplastline=False):
@@ -218,6 +220,7 @@ if __name__ == "__main__":
               "Or if you've already done that, fyi there's an optional arg\n"
               "of 'nocolor', which should be pretty self-explanatory.")
         exit()
+
     while True:
         a4.main()
 
