@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# a4crypt v0.5.4 last mod 2011/12/21
+# a4crypt v0.5.5 last mod 2011/12/21
 # Latest version at <http://github.com/ryran/a7crypt>
 # Copyright 2011 Ryan Sawhill <ryan@b19.org>
 #
@@ -15,15 +15,13 @@
 #------------------------------------------------------------------------------
 
 # TODO: SCRIPT docstring
-# TODO: Implement GPG reading passphrase from fd instead of tempfile with 
-# --passphrase-fd or --command-fd (will have to also make data use that method)
 
-# Standard Library stuff only
-from os.path import isfile
-from os import environ, pathsep, access, X_OK
+# All Standard Library
 from collections import namedtuple
+from os.path import isfile
+from os import environ, pathsep, access, X_OK, pipe, write, close
 from getpass import getpass
-from tempfile import NamedTemporaryFile
+from shlex import split
 from subprocess import Popen, PIPE, STDOUT
 
 
@@ -33,7 +31,7 @@ class a4crypt:
     
     This simply aims to make GPG1/GPG2 symmetric ASCII encryption in terminals
     easier and more fun. (Actually, this was just an excuse for a project in my
-    first week of learning python, but hey. ...)
+    fiZ week of learning python, but hey. ...)
     
     Instantiate this class with color=False if you like spam.
     
@@ -42,39 +40,39 @@ class a4crypt:
     proper attribute or two and launch the processing method yourself. ...
     
     And that method would be launch_gpg() which does the actual encryption &
-    decryption. To use it directly, first save your input to self.inputdata
+    decryption. To use it directly, save your input to 'a4crypt.inputdata'
     (simple text or file-objects welcome; lists are not), then run:
-        launch_gpg(mode, passfile)
-    where mode is either e or d and passfile is the path to a file containing
-    only your passphrase.
+        launch_gpg(mode, passphrase)
+    where mode is either e or d and passphrase is, well... you know.
     
-    It would of course be simpler and more secure to just let main() do that
-    for you, since it would save the passphrase to a tempfile only readable by
-    you, and would delete it as soon as the encryption or decryption is done,
-    usually only seconds after the file was created. ... But suit yourself.
+    Once you do that, the passphrase is stored in a OS file descriptor (which
+    gpg itself reads directly from) and the input data is passed directly to gpg
+    as stdin. Point being, none of your data ends up out in the filesystem.
     
     """
 
     def __init__(self, color=True):
-        """Define vars we need, incl. colors. Check for GPG or GPG2."""
+        """Decide GPG or GPG2 and define class attrs."""
+        # Attr which we will store input for gpg in later
         self.inputdata = ''
-        Colors = namedtuple('Colors', 'RST BLD R B G C')
+        # Color makes it a lot easier to distinguish input & output
+        Colors = namedtuple('Colors', 'Z B p r b g c')
         if color:
-            self.c = Colors(
-                RST='\033[0m', BLD='\033[0m\033[1m', R='\033[1;31m',
-                B='\033[1;34m', G='\033[1;32m', C='\033[0;36m')
+            self.c = Colors(       # Zero, Bold, purple, red, blue, green, cyan
+                Z='\033[0m', B='\033[0m\033[1m', p='\033[1;35m',
+                r='\033[1;31m', b='\033[1;34m', g='\033[1;32m', c='\033[0;36m')
         else:
-            self.c = Colors('', '', '', '', '', '')
-
-        # Time to check for gpg or gpg2 and set variables accordingly
+            self.c = Colors('', '', '', '', '', '', '')
+        # Check path for gpg, then gpg2; set variable for later
         for d in environ['PATH'] .split(pathsep):
             for p in ('gpg', 'gpg2'):
                 if isfile(d+'/'+p) and access(d+'/'+p, X_OK):
-                    self.gpg = p
+                    if p == 'gpg': self.gpg = 'gpg --no-use-agent'
+                    else: self.gpg = p
                     return
         else:
-            print("{R}Error! This program requires gpg or gpg2 to work!{RST}"
-                  .format(**self.c._asdict()))
+            print("{r}Error! This program requires gpg or gpg2 to work. Neither "
+                  "were found on your system.{Z}" .format(**self.c._asdict()))
             if __name__ == "__main__": exit()
             return
 
@@ -82,11 +80,13 @@ class a4crypt:
 
     def main(self):
         """Load initial prompt and kick off all the other functions."""
-        # Initial prompt
-        print("{BLD}[{R}e{BLD}]ncrypt, [{R}d{BLD}]ecrypt, or [{R}q{BLD}]uit?"
+        # Banner/question
+        print("{0.p}<{gpg}>" .format(self.c, gpg=self.gpg[:4].upper().strip())),
+        print("{B}[{r}e{B}]ncrypt, [{r}d{B}]ecrypt, or [{r}q{B}]uit?{Z}"
               .format(**self.c._asdict()))
+        # Prompt
         mode = self.test_rawinput(": ", 'e', 'd', 'Q', 'q')
-
+        # QUIT
         if mode in {'q', 'Q'}:
             if __name__ == "__main__":
                 exit()
@@ -94,64 +94,55 @@ class a4crypt:
         # ENCRYPT MODE
         elif mode == 'e':
             # Get our message-to-be-encrypted from the user; save to variable
-            print("{B}Type or paste message to be encrypted.\nEnd with line "
-                  "containing only a triple-semicolon, i.e. {BLD};;;{B}\n:{RST}"
+            print("{b}Type or paste message to be encrypted.\nEnd with line "
+                  "containing only a triple-semicolon, i.e. {B};;;\n:{Z}"
                   .format(**self.c._asdict())),
             self.inputdata = self.multiline_input(';;;')
             print
-            # Get passphrase from the user; save to tmpfile
-            pwd = self.get_passphrase()
-            #from tempfile import NamedTemporaryFile
-            passphrasefile = NamedTemporaryFile(bufsize=0)
-            passphrasefile.write(pwd)
+            # Get passphrase from the user
+            passphrase = self.get_passphrase(confirm=True)
             # Launch our subprocess and print the output
-            gpg_output = self.launch_gpg(mode, passphrasefile.name)
-            passphrasefile.close()
-            print("{0.G}\nEncrypted message follows:\n\n{0.C}{1}{0.RST}"
-                  .format(self.c, gpg_output))
+            gpg_output = self.launch_gpg(mode, passphrase)
+            print("{0.g}\nEncrypted message follows:\n\n{0.c}{output}{0.Z}"
+                  .format(self.c, output=gpg_output))
         # DECRYPT MODE
         elif mode == 'd':
             # Get our encrypted message from the user; save to variable
-            print("{0.B}Paste GPG-encrypted message to be decrypted.\n:{0.RST}"
-                  .format(self.c)),
+            print("{b}Paste GPG-encrypted message to be decrypted.\n{B}:{Z}"
+                  .format(**self.c._asdict())),
             self.inputdata = self.multiline_input('-----END PGP MESSAGE-----',
                                                   keeplastline=True)
             print
-            # Get passphrase from the user; save to tmpfile
-            pwd = self.get_passphrase(confirm=False)
-            #from tempfile import NamedTemporaryFile
-            passphrasefile = NamedTemporaryFile(bufsize=0)
-            passphrasefile.write(pwd)
+            # Get passphrase from the user
+            passphrase = self.get_passphrase(confirm=False)
             # Launch our subprocess and print the output
-            gpg_output = self.launch_gpg(mode, passphrasefile.name)
+            gpg_output = self.launch_gpg(mode, passphrase)
             while True:
                 if gpg_output:
-                    print("{0.G}\nDecrypted message follows:\n\n{0.C}{1}"
-                          "{0.RST}\n" .format(self.c, gpg_output))
+                    print("{0.g}\nDecrypted message follows:\n\n{0.c}{output}"
+                          "{0.Z}\n" .format(self.c, output=gpg_output))
                     break
                 else:
-                    print("{0.R}Error in decryption process! Try again with a "
-                          "different passphrase?" .format(self.c))
+                    print("{0.r}Error in decryption process! Try again with a "
+                          "different passphrase?{0.Z}" .format(self.c))
                     tryagain = self.test_rawinput("[y/n]: ", 'y', 'n')
                     if tryagain == 'y':
-                        pwd = self.get_passphrase(confirm=False)
-                        passphrasefile.seek(0)
-                        passphrasefile.write(pwd)
-                        gpg_output = self.launch_gpg(mode, passphrasefile.name)
+                        passphrase = self.get_passphrase(confirm=False)
+                        gpg_output = self.launch_gpg(mode, passphrase)
                     else:
                         break
-            passphrasefile.close()                
 
 
 
     def test_rawinput(self, prompt, *args):
         """Test user input. Keep prompting until recieve one of 'args'."""
-        prompt = self.c.BLD + prompt + self.c.RST
+        prompt = self.c.B + prompt + self.c.Z
         userinput = raw_input(prompt)
         while userinput not in args:
-            userinput = raw_input("{0.R}Expecting one of {1}\n{2}"
-                                  .format(self.c, args, prompt))
+            userinput = raw_input("{0.r}Expecting one of {args}\n{prompt}"
+                                  .format(self.c, args=args, prompt=prompt))
         return userinput
+
 
     def multiline_input(self, EOFstr, keeplastline=False):
         """Prompt for (and return) multiple lines of raw input.
@@ -175,35 +166,46 @@ class a4crypt:
         """
         #from getpass import getpass
         while True:
-            pwd1 = getpass(prompt="{B}Carefully enter passphrase:{RST} "
+            pwd1 = getpass(prompt="{b}Carefully enter passphrase:{Z} "
                            .format(**self.c._asdict()))
             while len(pwd1) == 0:
-                pwd1 = getpass(prompt="{R}You must enter a passphrase:{RST} "
+                pwd1 = getpass(prompt="{r}You must enter a passphrase:{Z} "
                                .format(**self.c._asdict()))
             if not confirm:
                 return pwd1
-            pwd2 = getpass(prompt="{B}Repeat passphrase to confirm:{RST} "
+            pwd2 = getpass(prompt="{b}Repeat passphrase to confirm:{Z} "
                            .format(**self.c._asdict()))
             if pwd1 == pwd2:
                 return pwd1
-            print("{R}The passphrases you entered did not match!{RST}"
+            print("{r}The passphrases you entered did not match!{Z}"
                   .format(**self.c._asdict()))
 
 
-    def launch_gpg(self, mode, passfile):
-        """Start our GPG or GPG2 subprocess & save/return its output."""
+    def launch_gpg(self, mode, passphrase):
+        """Start our GPG or GPG2 subprocess & save/return its output.
+        
+        Aside from its arguments of a passphrase & a mode of 'e' for encrypt or
+        'd' for decrypt, this method reads input from a class attribute called
+        'inputdata' which can contain normal non-list data or be a file object.
+        """
+        #from os import pipe, write, close
+        #from shlex import split
         #from subprocess import Popen, PIPE, STDOUT
+        fd_in, fd_out = pipe()
+        write(fd_out, passphrase) ; close(fd_out)
         if mode == 'e':
-            g = Popen([self.gpg, '--no-use-agent', '--batch', '--no-tty',
-                      '--yes', '-a', '-c', '--force-mdc', '--passphrase-file',
-                      passfile], stdin=PIPE, stdout=PIPE)
+            cmd = '{0} --batch --no-tty --yes -a -c --force-mdc --passphrase-fd {1}' \
+                  .format(self.gpg, fd_in)
         elif mode == 'd':
-            g = Popen([self.gpg, '--no-use-agent', '--batch', '--no-tty',
-                      '--yes', '-d', '--passphrase-file',
-                      passfile], stdin=PIPE, stdout=PIPE)
+            cmd = '{0} --batch --no-tty --yes -d --passphrase-fd {1}' \
+                  .format(self.gpg, fd_in)        
         else:
+            close(fd_in)
             return "Improper mode specified. Must be one of 'e' or 'd'."
-        return g.communicate(input=self.inputdata)[0]
+        g = Popen(split(cmd), stdin=PIPE, stdout=PIPE)
+        output = g.communicate(input=self.inputdata)[0]
+        close(fd_in)
+        return output
 
 
 
@@ -211,14 +213,13 @@ class a4crypt:
 if __name__ == "__main__":
 
     from sys import argv
-    if len(argv) == 2 and argv[1] == 'nocolor':
+    if len(argv) == 2 and (argv[1] == '--nocolor' or argv[1] == '-n'):
         a4 = a4crypt(color=False)
     elif len(argv) == 1:
         a4 = a4crypt()
     else:
         print("Run with no arguments to get interactive prompt.\n"
-              "Or if you've already done that, fyi there's an optional arg\n"
-              "of 'nocolor', which should be pretty self-explanatory.")
+              "Optional argument: --nocolor (alias: -n)")
         exit()
 
     while True:
