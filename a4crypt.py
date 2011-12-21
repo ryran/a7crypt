@@ -31,7 +31,7 @@ class a4crypt:
     
     This simply aims to make GPG1/GPG2 symmetric ASCII encryption in terminals
     easier and more fun. (Actually, this was just an excuse for a project in my
-    fiZ week of learning python, but hey. ...)
+    first week of learning python, but hey. ...)
     
     Instantiate this class with color=False if you like spam.
     
