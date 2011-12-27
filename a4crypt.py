@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# a4crypt v0.5.5 last mod 2011/12/21
+# a4crypt v0.5.6 last mod 2011/12/27
 # Latest version at <http://github.com/ryran/a7crypt>
 # Copyright 2011 Ryan Sawhill <ryan@b19.org>
 #
@@ -18,14 +18,14 @@
 
 # All Standard Library
 from collections import namedtuple
-from os.path import isfile
+from os.path import isfile, join
 from os import environ, pathsep, access, X_OK, pipe, write, close
 from getpass import getpass
 from shlex import split
 from subprocess import Popen, PIPE, STDOUT
 
 
-class a4crypt:
+class Acrypt:
 
     """Provide cmdline wrapper for symmetric {en,de}cryption functions of GPG.
     
@@ -40,7 +40,7 @@ class a4crypt:
     proper attribute or two and launch the processing method yourself. ...
     
     And that method would be launch_gpg() which does the actual encryption &
-    decryption. To use it directly, save your input to 'a4crypt.inputdata'
+    decryption. To use it directly, save your input to 'Acrypt.inputdata'
     (simple text or file-objects welcome; lists are not), then run:
         launch_gpg(mode, passphrase)
     where mode is either e or d and passphrase is, well... you know.
@@ -53,8 +53,6 @@ class a4crypt:
 
     def __init__(self, color=True):
         """Decide GPG or GPG2 and define class attrs."""
-        # Attr which we will store input for gpg in later
-        self.inputdata = ''
         # Color makes it a lot easier to distinguish input & output
         Colors = namedtuple('Colors', 'Z B p r b g c')
         if color:
@@ -64,18 +62,20 @@ class a4crypt:
         else:
             self.c = Colors('', '', '', '', '', '', '')
         # Check path for gpg, then gpg2; set variable for later
+        self.gpg = ''
         for d in environ['PATH'] .split(pathsep):
             for p in ('gpg', 'gpg2'):
-                if isfile(d+'/'+p) and access(d+'/'+p, X_OK):
+                if isfile(join(d,p)) and access(join(d,p), X_OK):
                     if p == 'gpg': self.gpg = 'gpg --no-use-agent'
                     else: self.gpg = p
-                    return
-        else:
+                    break
+            if self.gpg: break
+        if not self.gpg:
             print("{r}Error! This program requires gpg or gpg2 to work. Neither "
-                  "were found on your system.{Z}" .format(**self.c._asdict()))
-            if __name__ == "__main__": exit()
-            return
-
+                  "were found in your PATH.{Z}" .format(**self.c._asdict()))
+            raise Exception("gpg/gpg2 not found!")
+        # Attr which we will store input for gpg in later
+        self.inputdata = ''
 
 
     def main(self):
@@ -214,9 +214,9 @@ if __name__ == "__main__":
 
     from sys import argv
     if len(argv) == 2 and (argv[1] == '--nocolor' or argv[1] == '-n'):
-        a4 = a4crypt(color=False)
+        a4 = Acrypt(color=False)
     elif len(argv) == 1:
-        a4 = a4crypt()
+        a4 = Acrypt()
     else:
         print("Run with no arguments to get interactive prompt.\n"
               "Optional argument: --nocolor (alias: -n)")
