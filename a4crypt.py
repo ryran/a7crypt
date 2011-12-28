@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# a4crypt v0.5.6 last mod 2011/12/27
+# a4crypt v0.5.8 last mod 2011/12/28
 # Latest version at <http://github.com/ryran/a7crypt>
 # Copyright 2011 Ryan Sawhill <ryan@b19.org>
 #
@@ -35,15 +35,15 @@ class Acrypt:
     
     Instantiate this class with color=False if you like spam.
     
-    The most important method here is main() -- it will launch an interactive
-    prompt and take care of everything for you. That said, you can set the
-    proper attribute or two and launch the processing method yourself. ...
+    The most important method here is load_main() -- it will launch an
+    interactive prompt and take care of everything for you. That said, you can
+    set the proper attribute or two and launch the processing method yourself.
     
-    And that method would be launch_gpg() which does the actual encryption &
-    decryption. To use it directly, save your input to 'Acrypt.inputdata'
-    (simple text or file-objects welcome; lists are not), then run:
+    ...And that method would be launch_gpg() which does the actual encryption &
+    decryption. To use it directly, save your input to the class attribute
+    'inputdata' (simple text or file-objects welcome; lists are not), then run:
         launch_gpg(mode, passphrase)
-    where mode is either e or d and passphrase is, well... you know.
+    where mode is either e or d for encryption or decryption.
     
     Once you do that, the passphrase is stored in a OS file descriptor (which
     gpg itself reads directly from) and the input data is passed directly to gpg
@@ -61,7 +61,7 @@ class Acrypt:
                 r='\033[1;31m', b='\033[1;34m', g='\033[1;32m', c='\033[0;36m')
         else:
             self.c = Colors('', '', '', '', '', '', '')
-        # Check path for gpg, then gpg2; set variable for later
+        # Check path for gpg, else gpg2 & set variable for later
         self.gpg = ''
         for d in environ['PATH'] .split(pathsep):
             for p in ('gpg', 'gpg2'):
@@ -73,12 +73,12 @@ class Acrypt:
         if not self.gpg:
             print("{r}Error! This program requires gpg or gpg2 to work. Neither "
                   "were found in your PATH.{Z}" .format(**self.c._asdict()))
-            raise Exception("gpg/gpg2 not found!")
-        # Attr which we will store input for gpg in later
+            raise Exception("gpg/gpg2 not found")
+        # Attr in which we will store input for gpg later
         self.inputdata = ''
 
 
-    def main(self):
+    def load_main(self):
         """Load initial prompt and kick off all the other functions."""
         # Banner/question
         print("{0.p}<{gpg}>" .format(self.c, gpg=self.gpg[:4].upper().strip())),
@@ -97,30 +97,30 @@ class Acrypt:
             print("{b}Type or paste message to be encrypted.\nEnd with line "
                   "containing only a triple-semicolon, i.e. {B};;;\n:{Z}"
                   .format(**self.c._asdict())),
-            self.inputdata = self.multiline_input(';;;')
+            self.inputdata = self.get_multiline_input(';;;')
             print
             # Get passphrase from the user
             passphrase = self.get_passphrase(confirm=True)
             # Launch our subprocess and print the output
-            gpg_output = self.launch_gpg(mode, passphrase)
+            gpgoutput = self.launch_gpg(mode, passphrase)
             print("{0.g}\nEncrypted message follows:\n\n{0.c}{output}{0.Z}"
-                  .format(self.c, output=gpg_output))
+                  .format(self.c, output=gpgoutput))
         # DECRYPT MODE
         elif mode == 'd':
             # Get our encrypted message from the user; save to variable
             print("{b}Paste GPG-encrypted message to be decrypted.\n{B}:{Z}"
                   .format(**self.c._asdict())),
-            self.inputdata = self.multiline_input('-----END PGP MESSAGE-----',
-                                                  keeplastline=True)
+            self.inputdata = self.get_multiline_input('-----END PGP MESSAGE-----',
+                                                      keeplastline=True)
             print
             # Get passphrase from the user
             passphrase = self.get_passphrase(confirm=False)
             # Launch our subprocess and print the output
-            gpg_output = self.launch_gpg(mode, passphrase)
+            gpgoutput = self.launch_gpg(mode, passphrase)
             while True:
-                if gpg_output:
+                if gpgoutput:
                     print("{0.g}\nDecrypted message follows:\n\n{0.c}{output}"
-                          "{0.Z}\n" .format(self.c, output=gpg_output))
+                          "{0.Z}\n" .format(self.c, output=gpgoutput))
                     break
                 else:
                     print("{0.r}Error in decryption process! Try again with a "
@@ -128,7 +128,7 @@ class Acrypt:
                     tryagain = self.test_rawinput("[y/n]: ", 'y', 'n')
                     if tryagain == 'y':
                         passphrase = self.get_passphrase(confirm=False)
-                        gpg_output = self.launch_gpg(mode, passphrase)
+                        gpgoutput = self.launch_gpg(mode, passphrase)
                     else:
                         break
 
@@ -144,7 +144,7 @@ class Acrypt:
         return userinput
 
 
-    def multiline_input(self, EOFstr, keeplastline=False):
+    def get_multiline_input(self, EOFstr, keeplastline=False):
         """Prompt for (and return) multiple lines of raw input.
         
         Stop prompting once receive a line containing only EOFstr. Return input
@@ -164,19 +164,17 @@ class Acrypt:
         
         Skip the second confirmation prompt if run with confirm=False.
         """
-        #from getpass import getpass
+        # getpass.getpass
         while True:
             pwd1 = getpass(prompt="{b}Carefully enter passphrase:{Z} "
                            .format(**self.c._asdict()))
             while len(pwd1) == 0:
                 pwd1 = getpass(prompt="{r}You must enter a passphrase:{Z} "
                                .format(**self.c._asdict()))
-            if not confirm:
-                return pwd1
+            if not confirm: return pwd1
             pwd2 = getpass(prompt="{b}Repeat passphrase to confirm:{Z} "
                            .format(**self.c._asdict()))
-            if pwd1 == pwd2:
-                return pwd1
+            if pwd1 == pwd2: return pwd1
             print("{r}The passphrases you entered did not match!{Z}"
                   .format(**self.c._asdict()))
 
@@ -188,9 +186,7 @@ class Acrypt:
         'd' for decrypt, this method reads input from a class attribute called
         'inputdata' which can contain normal non-list data or be a file object.
         """
-        #from os import pipe, write, close
-        #from shlex import split
-        #from subprocess import Popen, PIPE, STDOUT
+        # os.{pipe,write,close}; shlex.split; subprocess.{Popen,PIPE,STDOUT}
         fd_in, fd_out = pipe()
         write(fd_out, passphrase) ; close(fd_out)
         if mode == 'e':
@@ -201,9 +197,11 @@ class Acrypt:
                   .format(self.gpg, fd_in)        
         else:
             close(fd_in)
-            return "Improper mode specified. Must be one of 'e' or 'd'."
-        g = Popen(split(cmd), stdin=PIPE, stdout=PIPE)
-        output = g.communicate(input=self.inputdata)[0]
+            print("{r}Improper mode specified! Must be one of 'e' or 'd'.{Z}"
+                  .format(**self.c._asdict()))
+            raise Exception("Improper mode specified")
+        process = Popen(split(cmd), stdin=PIPE, stdout=PIPE)
+        output = process.communicate(input=self.inputdata)[0]
         close(fd_in)
         return output
 
@@ -223,5 +221,5 @@ if __name__ == "__main__":
         exit()
 
     while True:
-        a4.main()
+        a4.load_main()
 
