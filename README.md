@@ -101,7 +101,7 @@ And so far, that's it. Feel free to contribute!
 LICENSE
 -------
 
-Copyright (C) 2011 [Ryan Sawhill](http://b19.org) aka [ryran](https://github.com/ryran)
+Copyright (C) 2011, 2012 [Ryan Sawhill](http://b19.org) aka [ryran](https://github.com/ryran)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
