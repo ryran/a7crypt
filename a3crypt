@@ -1,7 +1,7 @@
 #!/bin/bash
-# a3crypt v1.0.2 last mod 2011/12/04
+# a3crypt v1.0.3 last mod 2012/01/09
 # Latest version at <http://github.com/ryran/a7crypt>
-# Copyright 2011 Ryan Sawhill <ryan@b19.org>
+# Copyright 2011, 2012 Ryan Sawhill <ryan@b19.org>
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
 #    General Public License <gnu.org/licenses/gpl.html> for more details.
-#-------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # This is a simple wrapper for gpg & openssl to do SYMMETRIC TEXT encryption
 # from the commandline, in contrast to a7crypt which is much more complicated,
 # and makes full use of GUI dialog boxes--even providing file encryption.
@@ -22,11 +22,12 @@
 # a3crypt makes no attempts to work around gpg2's lack of a --no-use-agent
 # option, so if you aren't using the OpenSSL mode and you don't have gpg, you
 # will get a GUI or TUI password dialog from gpg2. I didn't want to make things
-# overly complicated. That said, for the GUI app with many more features, see:
-#    <github.com/ryran/a7crypt>
+# overly complicated. For a much more advanced Python implementation, look for
+# a4crypt at <github.com/ryran/a8crypt> or if you're interested in a gui:
+# either a8crypt at the same url or a7crypt at <github.com/ryran/a7crypt>.
 #
 # Feel free to hit me up if you have any questions or suggestions.
-#-------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 ## Since we're requiring the user to press Ctrl-c to exit, we shouldn't throw a bad exit code (also, whitespace is nice)
 trap "{ echo; exit; }" INT
@@ -89,15 +90,18 @@ fi
 
 ## Initialize our variables, depending on which mode we're in
 if [[ $mode = GPG ]]; then
-  encrypt="gpg --no-use-agent -ac --force-mdc"; decrypt="gpg --no-use-agent -d"
+  encrypt="gpg --no-use-agent -ac --force-mdc --cipher-algo aes256"
+  decrypt="gpg --no-use-agent -d"
   steps_decrypt="paste GPG-encrypted message, enter passphrase when prompted"
   unset ctrld
 elif [[ $mode = GPG2 ]]; then
-  encrypt="gpg2 -ac --force-mdc"; decrypt="gpg2 -d"
+  encrypt="gpg2 -ac --force-mdc --cipher-algo aes256"
+  decrypt="gpg2 -d"
   steps_decrypt="paste GPG-encrypted message, enter passphrase if prompted (if not prompted, GPG2 agent remembered your passphrase)"
   unset ctrld
 elif [[ $mode = OpenSSL-AES ]]; then
-  encrypt="openssl aes-256-cbc -salt -a"; decrypt="openssl aes-256-cbc -d -a"
+  encrypt="openssl aes-256-cbc -salt -a"
+  decrypt="openssl aes-256-cbc -d -a"
   steps_decrypt="enter passphrase, paste OpenSSL-AES-encrypted message"
   ctrld=" TWICE"
 fi
