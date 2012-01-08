@@ -1,7 +1,7 @@
 #!/bin/bash
-# a7crypt v1.0.0-RC9 last mod 2011/12/04
+# a7crypt v1.0.0 last mod 2012/01/04/09
 # Latest version at <http://github.com/ryran/a7crypt>
-# Copyright 2011 Ryan Sawhill <ryan@b19.org>
+# Copyright 2011, 2012 Ryan Sawhill <ryan@b19.org>
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -52,9 +52,12 @@
 # script, they're named based on the script's current filename; not some static
 # project name. This means that you can feel free to rename the script.
 # Everything else will go along with the new name--you don't need to change
-# anything in the content. Caveat: Don't be stupid & put a space in the name. :)
+# anything in the content. Caveat: Don't be stupid & put spaces in the name. :)
 #
 # Feel free to hit me/the tracker up if you have any questions or suggestions!
+#
+# PS: If you like this you should check out a8crypt -- a gui frontend with more
+# features implemented in Python & GTK. <http://github.com/ryran/a8crypt>
 #-------------------------------------------------------------------------------
 
 ## If the filename of our script is /usr/local/bin/a7crypt, then this variable would end up being "a7crypt", which we will use throughout
@@ -144,13 +147,13 @@ done
 ## Functions to initialize the variables for each mode (see beginning of MAIN function for $gpg enumeration)
 init_env_GPG() {
   switch_to=OpenSSL
-  encrypt="$gpg --batch --no-tty --yes -c --force-mdc --passphrase-file $wd/pass --output $wd/output"
-  decrypt="$gpg --batch --no-tty --yes -d --passphrase-file $wd/pass --output $wd/output"
+  encrypt="$gpg --batch --no-tty --yes --passphrase-file $wd/pass -o $wd/output -c --force-mdc --cipher-algo aes256"
+  decrypt="$gpg --batch --no-tty --yes --passphrase-file $wd/pass -o $wd/output -d"
 }
 init_env_OPENSSL() {
   switch_to=GPG
-  encrypt="openssl aes-256-cbc -salt -pass file:$wd/pass -out $wd/output"
-  decrypt="openssl aes-256-cbc -d -pass file:$wd/pass -out $wd/output"
+  encrypt="openssl aes-256-cbc -pass file:$wd/pass -out $wd/output -salt"
+  decrypt="openssl aes-256-cbc -pass file:$wd/pass -out $wd/output -d"
 }
 
 
