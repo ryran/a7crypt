@@ -113,3 +113,8 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
 General Public License @[gnu.org/licenses/gpl.html](http://gnu.org/licenses/gpl.html>) for more details.
 
+
+
+See also
+--------
+[List of cryptography GUI tools](https://gist.github.com/stokito/eea7ee50d51e1db30122e2e33a62723e)
